@@ -19,7 +19,7 @@
 | [SKILL.md](SKILL.md) | 唯一正本：开工三件事、视觉+内容双基线、总定义（「导图=针对一个主体的穷尽延伸」）、词条表与定义笔记化规则、交付闸门。 |
 | [references/pitfalls.md](references/pitfalls.md) | 踩坑全集四类：文件格式坑、内容组织坑、管线坑、协作纪律。 |
 | [references/update-protocol.md](references/update-protocol.md) | 更新已有导图的六步协议（图是构建产物，禁手改 xmind）+ 防倒退三道保险。 |
-| [references/memory/](references/memory/) | 10 份深度知识文档：视觉基线全字段、CLI 出图流程、管线演化史、叙事校准、渲染闪黑排障等。 |
+| [references/memory/](references/memory/) | 6 份深度知识文档：视觉基线全字段、CLI 出图流程、叙事校准、渲染闪黑排障等。 |
 
 ## 🔑 60 秒看懂核心思想
 
@@ -52,7 +52,7 @@ mind-world-map/
 ├── references/
 │   ├── pitfalls.md               # 踩坑全集（四类）
 │   ├── update-protocol.md        # 更新六步协议 + 防倒退三保险
-│   └── memory/                   # 10 份深度知识文档
+│   └── memory/                   # 6 份深度知识文档
 ├── README.md / README.zh-CN.md
 ├── LICENSE (MIT)
 └── CHANGELOG.md

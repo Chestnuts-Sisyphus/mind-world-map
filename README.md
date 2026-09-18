@@ -19,7 +19,7 @@ Every rule in here is a scar: distilled from six real rounds of rework (2026-08 
 | [SKILL.md](SKILL.md) | The single source of truth: pre-flight checklist, dual baselines (visual + content), the total definition ("a mind map is the exhaustive extension of one subject"), term ledger & note-ification rules, delivery gates. |
 | [references/pitfalls.md](references/pitfalls.md) | Full pitfall archive in four classes: file-format traps, content-organization traps, pipeline traps, collaboration rules. |
 | [references/update-protocol.md](references/update-protocol.md) | The six-step protocol for updating an existing map (maps are build artifacts — hand-editing XMind is forbidden), plus three anti-regression safeguards. |
-| [references/memory/](references/memory/) | 10 deep-dive knowledge documents: visual style baseline, CLI generation flow, pipeline evolution history, narrative calibration, render-flicker troubleshooting, and more. |
+| [references/memory/](references/memory/) | 6 deep-dive knowledge documents: visual style baseline, CLI generation flow, narrative calibration, render-flicker troubleshooting, and more. |
 
 ## 🔑 Core ideas in 60 seconds
 
@@ -53,7 +53,7 @@ mind-world-map/
 ├── references/
 │   ├── pitfalls.md               # full pitfall archive (4 classes)
 │   ├── update-protocol.md        # six-step update protocol + anti-regression safeguards
-│   └── memory/                   # 10 deep-dive knowledge docs (style baseline, CLI flow, ...)
+│   └── memory/                   # 6 deep-dive knowledge docs (style baseline, CLI flow, ...)
 ├── README.md / README.zh-CN.md
 ├── LICENSE (MIT)
 └── CHANGELOG.md

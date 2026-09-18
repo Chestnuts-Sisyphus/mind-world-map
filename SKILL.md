@@ -33,7 +33,7 @@ description: 思维导图工程化产出流程。凡任务涉及「导图、思�
 
 ## 流水线（数据/构建分离，别手拼 content.json）
 
-成熟范式在 `C:/Users/Administrator/.zcode/workspace/default/`：
+成熟范式在 `~/.zcode/workspace/default/`：
 
 - `cm_data_*.py` —— 内容源，`node = [title, [children]]`；每支平铺直挂，深层结构交给计划表
 - `cm_restructure.py` —— 改名映射（RENAME_MAP）→ 去重 → 家族合并（MERGE_FAMILIES，**跑不动点**）→ PLANS 计划表重组（覆盖断言：漏挂/多挂都报错）→ 一级收拢 → 扇出闸
@@ -72,7 +72,7 @@ description: 思维导图工程化产出流程。凡任务涉及「导图、思�
 ## 交付闸铁律（09-07 拍板：生成和更新必须走这条线，任何图 100% 合规）
 
 0. **入线铁律（最高一条）**：思维导图的**生成和更新只有一条合法路径**——数据文件→构建器→五道闸+QA 八检→validate_map 过闸→交付。禁手拼 content.json、禁手改 xmind 成品、禁绕开管线直接交付。图是谁产的（本会话、外派会话、其他 agent）无关紧要；没有数据文件的外部图需要修改时，先按数据/构建分离范式数据化，再走管线。
-1. **闸只认树不认人**：交付前必须过 `validate_map.py`：`python C:/Users/Administrator/.zcode/workspace/default/validate_map.py <xmind路径>`，退出码 0 才许交付。阻断级不过=回数据文件重建。任何会话/工具可对**任何**成品图随时一键复验——没走这条线的图，验一次就现形。
+1. **闸只认树不认人**：交付前必须过 `validate_map.py`：`python ~/.zcode/workspace/default/validate_map.py <xmind路径>`，退出码 0 才许交付。阻断级不过=回数据文件重建。任何会话/工具可对**任何**成品图随时一键复验——没走这条线的图，验一次就现形。
 2. **构建期笔记全附**：五个构建器（CM/终审包/二号机/成果图/闪黑研究）出图前由 `def_notes.build_note_text` 把词条表释义注入每个使用点 notes——全附由构造保证，新图构建自动继承。笔记结构不变量（行形态/顶格词名在标题/缩进=依赖/一词一次）由 validate_map 对成品复验。
 3. **死词条处置**：词条全图零使用=死词条闸拦。两条路——补一个真正用到它的标题（词有价值），或从词条表删除（概念没活进正文）。不许为过闸硬塞没头没尾的使用点。
 4. **报告级≠放行**：validate_map 的报告级候选若与构建器台账口径不同（体检用默认参数），需对照构建器的 ALLOWED_ASCII/variant_ignore/def_card_exempt 台账判读；无台账对照时逐条分诊。

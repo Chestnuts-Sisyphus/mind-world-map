@@ -5,3 +5,10 @@ Thumbs.db
 *.log
 .idea/
 .vscode/
+
+# 本地私有知识文档：只留在本地 skill 正本目录，有意不进公开包
+QODER-MIGRATION.md
+references/memory/cm-closure-mindmap-pipeline.md
+references/memory/cm-zhongshen-mindmap-delivered.md
+references/memory/connectome-cm-core-definition.md
+references/memory/connectome-mindmap-project.md

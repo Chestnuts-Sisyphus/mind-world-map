@@ -12,7 +12,7 @@ metadata:
 
 ## 导图工程 skill（2026-09-05 建，栗子令「工程化保证以后导图质量」+「图随主体状态更新」）
 
-- **入口**：`C:/Users/Administrator/.zcode/skills/mindmap-engineering/SKILL.md` + `references/pitfalls.md`（踩坑全集）+ `references/update-protocol.md`（更新六步协议）
+- **入口**：`~/.zcode/skills/mindmap-engineering/SKILL.md` + `references/pitfalls.md`（踩坑全集）+ `references/update-protocol.md`（更新六步协议）
 - **触发场景**：任何「导图/思维导图/xmind/全景图/结构图」任务——新做、**更新**、验收都算
 - **开工三件事**：①读记忆库 xmind-style-baseline + xmind-cli-local-generation ②改标准须栗子点头 ③确认一口气到终形态
 - **出图闸门（09-06 升级）**：一代闸（禁标点/**首现即释**【术语首用2跳内须白话定义+命名讨论后置，check_term_locality】/**词条合同**【复述式定义阻断】/**一级预算≤9**/字数/黑话/扇出）+ 二代 QA 七检+2（链条改名、家族canon毒化【阻断】；字母码、变体兄弟、机械组、导览、**类目导览缺失、跨支重复**【报告级须分诊】）

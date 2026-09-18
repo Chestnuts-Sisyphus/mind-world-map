@@ -11,6 +11,7 @@
 5. **字体**：全局替换 NeverMind→Georgia、STZhongsong→Noto Serif SC；无内联样式的深层节点必须显式挂 fo:font-family=Georgia（深层走主题回退，必须补挂）。
 6. **CLI 拼不全**：不要用 CLI 主题参数拼图。以样例 xmind 为模板：解包→只改 content.json（rootTopic.title/children、right-number）→重打包（content.json+metadata+manifest 三个文件，不带 Thumbnails/）。
 7. **验证**：`xmind validate` 0 错只是底线；同路径文件被 Xmind 开着时覆盖重开=旧渲染缓存，验证要用副本文件名+taskkill 干净重启；无头渲染验证用 PowerShell PrintWindow+Windows OCR（CopyFromScreen 会被前台窗口遮挡）。
+   **内容轮询判据（09-18 能力 14 实测入册）**：抓帧必须按**非白内容占比轮询（5 秒一次），占比 >2% 才算渲染就绪**，**禁固定秒数盲抓**——副本冷启动实测存在约 55 秒全白空白期（0~50 秒占比 0.000，55 秒才 0.078，与历史成功帧 0.093~0.098 同量级），15 秒盲抓＝全白假阴性。配套两条实锤：本机 GPU 合成失效须带 `--disable-gpu-compositing`；Windows OCR 读图须传**反斜杠绝对路径**（WinRT 拒正斜杠）。
 8. **关系线已否决**：跨支因果连线（sheet 级 relationships）栗子判「看着很乱」，标准=不用。
 
 ## 二、内容组织坑（六轮栗子批评的病根）

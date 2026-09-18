@@ -20,6 +20,7 @@ Every rule in here is a scar: distilled from six real rounds of rework (2026-08 
 | [references/pitfalls.md](references/pitfalls.md) | Full pitfall archive in four classes: file-format traps, content-organization traps, pipeline traps, collaboration rules. |
 | [references/update-protocol.md](references/update-protocol.md) | The six-step protocol for updating an existing map (maps are build artifacts — hand-editing XMind is forbidden), plus three anti-regression safeguards. |
 | [references/memory/](references/memory/) | 6 deep-dive knowledge documents: visual style baseline, CLI generation flow, narrative calibration, render-flicker troubleshooting, and more. |
+| [tools/sync_check.py](tools/sync_check.py) | Read-only three-way sync gate: SHA256-compares every public file between this repo mirror and your local skill master copies; exits non-zero and lists divergent files. Run before every commit. |
 
 ## 🔑 Core ideas in 60 seconds
 
@@ -44,6 +45,12 @@ cp -r mind-world-map ~/.claude/skills/mindmap-engineering
 Then trigger it with `/mindmap-engineering` (or let the agent load it automatically on any mind-map task).
 
 > **Scope note.** This repo is the *capability* (standards, gates, protocols, knowledge base). Concrete maps produced with it belong to their respective subject projects, not here. The reference pipeline scripts (builders, restructurers, validators) were developed against a personal local workspace and are not part of this public package; the methodology docs describe their required behavior in full detail.
+
+## 🧪 How to verify a map
+
+- `xmind validate` → 0 errors is the floor, not the bar.
+- Headless render check: open a **copy** of the file (never the original) with GPU compositing disabled, capture the window via PrintWindow, and **poll on non-white content ratio — >2% counts as rendered**. Fixed sleep durations produce all-white false negatives (cold start measured at ~55 s of blank on the reference machine). Windows OCR requires a backslash-absolute image path.
+- After any `git checkout`, re-run `python tools/sync_check.py` — line endings are pinned to LF by `.gitattributes`, and the gate catches any residual drift.
 
 ## 🗂️ Repository layout
 

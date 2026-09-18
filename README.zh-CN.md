@@ -20,6 +20,7 @@
 | [references/pitfalls.md](references/pitfalls.md) | 踩坑全集四类：文件格式坑、内容组织坑、管线坑、协作纪律。 |
 | [references/update-protocol.md](references/update-protocol.md) | 更新已有导图的六步协议（图是构建产物，禁手改 xmind）+ 防倒退三道保险。 |
 | [references/memory/](references/memory/) | 6 份深度知识文档：视觉基线全字段、CLI 出图流程、叙事校准、渲染闪黑排障等。 |
+| [tools/sync_check.py](tools/sync_check.py) | 零写盘三处同步闸：逐文件比对仓库镜像与本地 skill 正本的 SHA256，任何漂移都以非 0 退出码列出差异文件。每次提交前跑一次。 |
 
 ## 🔑 60 秒看懂核心思想
 
@@ -43,6 +44,12 @@ cp -r mind-world-map ~/.claude/skills/mindmap-engineering
 之后用 `/mindmap-engineering` 触发，或让 Agent 在任何导图任务开工前自动加载。
 
 > **边界说明。** 本仓库是「能力面」——标准、闸门、协议、知识库。用它产出的具体导图归各自的主题项目管辖，不放这里。参考实现中的管线脚本（构建器/重组器/校验器）长在某人的本地工作区上，不随本公开包发布；方法论文档对其应有行为的描述是完整的。
+
+## 🧪 如何验收一张图
+
+- `xmind validate` 0 错只是底线，不是验收线。
+- 无头渲染取证：开**副本**文件（绝不动正本）、禁用 GPU 合成启动、用 PrintWindow 抓窗，并且**按非白内容占比轮询——占比 >2% 才算渲染就绪**。固定秒数盲抓会出全白假阴性（基准机实测冷启动约 55 秒空白期）；Windows OCR 读图须传反斜杠绝对路径。
+- 任何 `git checkout` 之后复跑 `python tools/sync_check.py`：换行符已由 `.gitattributes` 钉为 LF，该闸兜住残余漂移。
 
 ## 🗂️ 目录结构
 

@@ -55,8 +55,19 @@ mind-world-map/
 │   └── memory/                   # 6 份深度知识文档
 ├── README.md / README.zh-CN.md
 ├── LICENSE (MIT)
-└── CHANGELOG.md
+├── CHANGELOG.md
+└── tools/sync_check.py           # 三处同步校验（仓库镜像 vs 本地 skill 正本）
 ```
+
+## 🔄 如何更新（How to update）
+
+**本地 skill 目录 = 编辑正本**，本仓库 = **发布镜像**。流程：
+
+1. 在本地 skill 目录（如 `~/.claude/skills/mindmap-engineering/`）编辑 `SKILL.md` / `references/**`。
+2. 把改动的文件按相同相对路径复制进本仓库。
+3. 运行 `python tools/sync_check.py` —— 逐文件比对仓库与本地 skill 目录的 SHA256，零写盘；任何不一致都以非 0 退出码列出差异文件。退出码 0 才允许提交。
+
+> `.gitignore` 中列出的项目私有知识文档（含 `QODER-MIGRATION.md`）按设计只留在本地；同步校验只比对公开文件集。
 
 ## 📄 许可
 

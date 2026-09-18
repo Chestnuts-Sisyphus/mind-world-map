@@ -56,8 +56,19 @@ mind-world-map/
 │   └── memory/                   # 6 deep-dive knowledge docs (style baseline, CLI flow, ...)
 ├── README.md / README.zh-CN.md
 ├── LICENSE (MIT)
-└── CHANGELOG.md
+├── CHANGELOG.md
+└── tools/sync_check.py           # three-way sync check (repo mirror vs local skill copies)
 ```
+
+## 🔄 How to update
+
+The **local skill directories are the editing master** (正本); this repository is the **public mirror** (发布镜像). Workflow:
+
+1. Edit `SKILL.md` / `references/**` in your local skill directory (e.g. `~/.claude/skills/mindmap-engineering/`).
+2. Copy the changed files into this repository (same relative paths).
+3. Run `python tools/sync_check.py` — it compares SHA256 of every shared file between the repo and the local skill copies, writes nothing to disk, exits non-zero and lists divergent files on any mismatch. Only commit when it exits 0.
+
+> Project-specific knowledge documents listed in `.gitignore` (and `QODER-MIGRATION.md`) stay local by design; the sync check only compares the public file set.
 
 ## 📄 License
 

@@ -35,9 +35,10 @@ Every rule in here is a scar: distilled from six real rounds of rework (2026-08 
 Copy this repository into your agent's skills directory, e.g.:
 
 ```bash
-git clone https://github.com/Chestnuts-Sisyphus/mindmap-engineering.git
-# Claude Code / Qoder-style skill discovery:
-cp -r mindmap-engineering ~/.claude/skills/
+git clone https://github.com/Chestnuts-Sisyphus/mind-world-map.git
+# Claude Code / Qoder-style skill discovery (repo name ≠ skill name on purpose;
+# the trigger name stays `mindmap-engineering`):
+cp -r mind-world-map ~/.claude/skills/mindmap-engineering
 ```
 
 Then trigger it with `/mindmap-engineering` (or let the agent load it automatically on any mind-map task).
@@ -47,7 +48,7 @@ Then trigger it with `/mindmap-engineering` (or let the agent load it automatica
 ## 🗂️ Repository layout
 
 ```
-mindmap-engineering/
+mind-world-map/
 ├── SKILL.md                      # entry point: standards & delivery gates (single source of truth)
 ├── references/
 │   ├── pitfalls.md               # full pitfall archive (4 classes)

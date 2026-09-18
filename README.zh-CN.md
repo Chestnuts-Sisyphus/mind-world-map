@@ -35,9 +35,9 @@
 把本仓库复制进你的 Agent 技能目录即可，例如：
 
 ```bash
-git clone https://github.com/Chestnuts-Sisyphus/mindmap-engineering.git
-# Claude Code / Qoder 等支持 skill 发现的客户端：
-cp -r mindmap-engineering ~/.claude/skills/
+git clone https://github.com/Chestnuts-Sisyphus/mind-world-map.git
+# Claude Code / Qoder 等支持 skill 发现的客户端（仓名与 skill 名有意不同，触发名保持 mindmap-engineering）：
+cp -r mind-world-map ~/.claude/skills/mindmap-engineering
 ```
 
 之后用 `/mindmap-engineering` 触发，或让 Agent 在任何导图任务开工前自动加载。
@@ -47,7 +47,7 @@ cp -r mindmap-engineering ~/.claude/skills/
 ## 🗂️ 目录结构
 
 ```
-mindmap-engineering/
+mind-world-map/
 ├── SKILL.md                      # 入口：标准与交付闸（唯一正本）
 ├── references/
 │   ├── pitfalls.md               # 踩坑全集（四类）

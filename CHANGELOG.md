@@ -18,8 +18,8 @@ generated from the matching section below, so a version without a section here c
 - **Added (`tools/preflight.py`)**: two more shapes of the `external-command-ref` rule -- a bare
   script name with no `python` prefix, and a `module.member` code reference. Both read as
   "run this" to a reader, and the old rule measured 24 unlabelled references across SKILL.md, the
-  reference docs and the published memory notes; the shapes fire on `cm_restructure.py` and
-  `def_notes.build_note_text`, both not shipped with this package. Package self-pointers are judged
+  reference docs and the published memory notes: a project-side builder script name, and a
+  project-side module's function -- neither shipped with this package. Package self-pointers are judged
   by directory prefix rather than file existence, because install-point layouts have no `examples/`
   and the verdict must not depend on where the gate runs; config keys and build artefacts are
   excluded after three measured false positives. Each new shape has a positive, negatives (labelled

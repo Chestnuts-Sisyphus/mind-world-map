@@ -7,6 +7,12 @@ generated from the matching section below, so a version without a section here c
 
 ## [Unreleased]
 
+_None yet; the release flow reopens this section after each tag (see CONTRIBUTING)._
+
+## v1.0.6 — 2026-09-19
+
+Gate-integrity patches after v1.0.5; released so `main` and the newest tag stay equal.
+
 - **Fixed (`tools/preflight.py`, security of the gate itself)**: the gate applied the
   publication transform *before* scanning, so a published file that actually contained a
   drive-letter path or an identity term was anonymised into cleanliness and reported green.

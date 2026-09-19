@@ -7,6 +7,13 @@ generated from the matching section below, so a version without a section here c
 
 ## [Unreleased]
 
+Nothing queued.
+
+## v1.1.1 — 2026-09-19 — External links get watched, and the docs stop overstating protection
+
+Follow-up to v1.1.0: the last class of unwatched pointer is now covered, and the governance docs
+say what branch protection actually enforces rather than what it looks like it enforces.
+
 - **Added (`tools/preflight.py`)**: `--check-links-online` sweeps every http(s) target in the
   package and reports `dead-online-link` with the status code and host only, never the surrounding
   text. It is advisory by default -- somebody else's uptime is not a reason to block a release --

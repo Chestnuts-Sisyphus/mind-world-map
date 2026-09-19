@@ -2,16 +2,17 @@
 
 ## Scope
 
-This repository publishes an agent skill: Markdown standards, knowledge documents and two
-read-only Python gates. It ships no service, no network layer, and no credentials. The realistic
+This repository publishes an agent skill: Markdown standards, knowledge documents, two read-only Python gates and one publish entry point. It ships no service, no network layer, and no credentials. The realistic
 security surface is therefore **information disclosure through the published text** — a document
 that leaks a machine-local path, an account name, a private file name, or a credential-shaped
 string that once existed in a working copy.
 
-The publication gate exists for exactly this: `tools/preflight.py` blocks drive-letter paths,
-8.3 short-name forms, user-directory segments, the local account name, credential shapes, and
-private documents named in public text, and it is enforced on every push by
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+`tools/preflight.py` blocks drive-letter paths, 8.3 short-name forms, user-directory segments, the
+local account name, credential shapes, local network details (loopback endpoints and proxy ports),
+personal-identity shapes (email forms), documentation that commands a script this package does not
+ship, and private documents named in public text. It is enforced on every push by
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml), and `python tools/preflight.py --self-test`
+proves each check category still fires.
 
 ## Reporting a vulnerability
 

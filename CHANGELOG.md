@@ -7,7 +7,17 @@ generated from the matching section below, so a version without a section here c
 
 ## [Unreleased]
 
-_None yet; the release flow reopens this section after each tag (see CONTRIBUTING)._
+- **Fixed (`tools/preflight.py`, security of the gate itself)**: the gate applied the
+  publication transform *before* scanning, so a published file that actually contained a
+  drive-letter path or an identity term was anonymised into cleanliness and reported green.
+  Proven by injection: writing the term into a copy exited 0. Repo mirrors are now scanned as
+  written; only an install-point run (where the master legitimately holds raw text) scans the
+  transformed view. Injection then exits 1 naming file:line, without echoing the matched text.
+- **Changed (`tools/identity-terms.tsv`)**: the block term is stored escaped, because the word
+  list ships with the package -- keeping it in plain text published the very word the gate
+  exists to keep out. No tracked file now contains it.
+- **Fixed (`SECURITY.md`)**: the public description of the gate's coverage lagged reality on two
+  counts (it undercounted the tools and omitted the three new check categories).
 
 ## v1.0.5 — 2026-09-19
 

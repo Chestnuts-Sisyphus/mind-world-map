@@ -1,13 +1,13 @@
 # 人工审词清单（发布面身份词表）—— tools/preflight.py 的 check_identity 逐行读这张表。
 #
-# 格式：verdict <TAB> term <TAB> reason
+# 格式：verdict <TAB> term <TAB> reason（term 可用 \uXXXX 转义，装载时解码；身份词本体一律转义，清单不留原文）
 #   verdict = block  命中即预检失败（该字面量不允许出现在发布面）
 #   verdict = exempt 命中不报，但必须留下「为什么不报」的理由
 # 审词口径：只有「能指回作者这个人 / 作者这台机器」的字面量才入 block；
 # 公开可查的产品名、通用技术名词即使读起来像内部代号，也归 exempt 并写明理由。
 # 新增 exempt 必须带理由；理由站不住就改 block，并回正本改写命中文本。
 # 以 # 开头的行为注释，空行忽略。
-block	栗子	作者对本人身份的称呼，任何形态都不许出现在发布面
+block	\u6817\u5b50	作者对本人身份的称呼；词本体转义存放，清单本身随包发布不留原文
 exempt	ZCode	上一代开发 agent 工具的产品名，公开可查；文中只作为历史工具语境出现，不指回作者个人或本机
 exempt	Codex	同类公开产品名（与 ZCode 同一处工具史叙述），不指回作者个人或本机
 exempt	Claude	模型/工具产品名，公开信息，文档叙述工具链所需

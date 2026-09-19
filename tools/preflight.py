@@ -28,11 +28,18 @@ if hasattr(sys.stdout, "reconfigure"):
 
 REPO = Path(__file__).resolve().parent.parent
 
+def _decode_terms(text: str) -> str:
+    """把清单/规则里以 \\uXXXX 转义存放的字面量解出来。
+    公开包里因此不承载身份词原文——词表本身也是发布面的一部分。"""
+    return text.encode("utf-8", "backslashreplace").decode("unicode_escape") if "\\u" in text else text
+
+
 # ---------------------------------------------------------------- 发布面变换表
 # 本地正本保留原文，公开包由这张表确定性变换得到（身份匿名化 + 本机路径通用化）。
 # sync_check 比对时同样先套这张表，因此「正本改了没发布」与「发布了没脱敏」都会报警。
+# 身份类字面量以 \uXXXX 转义存放，见 _decode_terms。
 LITERAL_RULES = [
-    ("栗子", "作者"),
+    (_decode_terms("\\u6817\\u5b50"), "作者"),
     ("[[cm-closure-mindmap-pipeline]]", "作者侧流水线记忆（未随包发布）"),
     ("[[tool-zero-friction-principle]]", "零摩擦工具原则（作者侧记忆，未随包发布）"),
     ("[[handoff-sys-0818-01-yuanben-tree]]", "作者侧交接文档（未随包发布）"),
@@ -64,7 +71,7 @@ def load_identity_terms(path=None):
         parts = [c.strip() for c in line.split("\t")]
         if len(parts) < 3 or not parts[1]:
             continue
-        verdict, term = parts[0].lower(), parts[1]
+        verdict, term = parts[0].lower(), _decode_terms(parts[1])
         if verdict == "block":
             blocked.append(term)
         elif verdict == "exempt":
@@ -601,7 +608,7 @@ def self_test():
     ok = ok and bool(hits)
 
     # 发布面变换表：必须生效且幂等（同一张表被 sync_check 与发布脚本共用）
-    src = "栗子定的标准见 [[cm-closure-mindmap-pipeline]]，落盘于 D:/AI/HERMES/a.md"
+    src = IDENTITY_BLOCK_TERMS[0] + "定的标准见 [[cm-closure-mindmap-pipeline]]，落盘于 D:/AI/HERMES/a.md"
     once = apply_publish_rules(src)
     twice = apply_publish_rules(once)
     clean = ("栗" not in once) and ("[[cm-" not in once) and (":/" not in once.replace("https://", ""))
@@ -642,6 +649,15 @@ def self_test():
     return 0 if ok else 1
 
 
+def scan_text(path: Path) -> str:
+    """决定「扫什么」：
+    仓库镜像布局 → 扫原文。发布物本就不该带本机痕迹，若先套匿名化再扫，等于把真泄露洗白后
+    宣布干净（本轮端到端注入实测过这个自证式漏洞）。
+    安装点布局 → 扫变换后的文本，即它将被发布成的样子。"""
+    raw = read(path)
+    return raw if is_repo_layout() else apply_publish_rules(raw)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="公开包发布面预检（零写盘）")
     ap.add_argument("--self-test", action="store_true", help="注入人造违规验证每类检测会响")
@@ -653,7 +669,7 @@ def main() -> int:
 
     findings = []
     for rel, path in iter_public_md():
-        text = apply_publish_rules(read(path))
+        text = scan_text(path)
         findings += check_local_trace(rel, text)
         findings += check_local_network(rel, text)
         findings += check_personal_identity(rel, text)
@@ -673,7 +689,7 @@ def main() -> int:
     for rel, path in tracked_text_files():
         if path.suffix.lower() == ".md":
             continue
-        text = apply_publish_rules(read(path))
+        text = scan_text(path)
         findings += check_local_trace(rel, text)
         findings += check_local_network(rel, text)
         findings += check_personal_identity(rel, text)

@@ -42,12 +42,12 @@
 
 ## 三、管线坑（改 cm_data/restructure/rename_map 必读）
 
-1. **链式改名必断**：apply_renames 单次查表不迭代。A→B→C 写法=停在 B。链检查器（mindmap_qa.check_rename_chains）已拦截；修法=把中间值键的 value 直接改成终值。
+1. **链式改名必断**：apply_renames 单次查表不迭代。A→B→C 写法=停在 B。链检查器（mindmap_qa.check_rename_chains，作者本机历史，非本包发布物）已拦截；修法=把中间值键的 value 直接改成终值。
 2. **家族 canon 必须=终值标题**：fam[0] 若是 RENAME_MAP 的 key，FAMILY_CANON 会把改名后标题反向解析回不存在的旧标题，take() 静默返回 None，症状是「分支有 N 个节点未被计划覆盖」——先查中毒家族再排查计划表。同题跨支的家族不能建（毒化另一支的引用），只能删。
 3. **家族合并要跑不动点**：union_within_branch/dissolve_naming 等重组步骤会把变体兄弟重新拼到同父（wwcd日志×2 实锤），restructure 里 merge_families 在每次重组后再跑。
 4. **覆盖断言报错三个根因**，按序排查：①新 L2 节点没挂计划表 ②家族 canon 毒化 ③计划引用了改名中间值。
 5. **报告文件时效**：QA/字数报告只在非空时落盘会留旧文件误导——永远覆写或先删。
-6. **Mimosa 拦 Bash 直写核心文件**：cm_restructure.py / cm_rename_map.py 用 Bash 脚本写会被 PreToolUse 钩子拒，必须走 Edit 工具；cm_data_* 批量补丁 Bash 可过。
+6. **Mimosa 拦 Bash 直写核心文件**：cm_restructure.py / cm_rename_map.py（作者本机历史，非本包发布物）用 Bash 脚本写会被 PreToolUse 钩子拒，必须走 Edit 工具；cm_data_* 批量补丁 Bash 可过。
 7. **检测器自身要被测试钉死**：QA 模块每个检查配正反例 selftest（af 两字母 run、同题跨支假阳性都是 selftest 抓出来的检查器 bug）。
 
 ## 四、协作纪律

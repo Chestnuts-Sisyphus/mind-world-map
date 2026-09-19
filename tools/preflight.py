@@ -146,6 +146,19 @@ PERSONAL_IDENTITY_RULES = [
 # 上一版只认 `python X.py`，于是 .ps1 / .cmd / 计划任务名 / .lnk / ProgId 全从闸下漏过
 # （本轮逐行实测：一个文件里 8 处命中，标注数 0）。
 PYTHON_CMD_REF = re.compile(r"\bpython[3]?\s+([A-Za-z0-9_./\\:\-<>]+\.py)")
+BARE_PY_REF = re.compile(r"(?<![\w/.\\~-])([A-Za-z0-9_][A-Za-z0-9_./\\\-~]*\.py)(?![\w~])")
+# `def_notes.build_note_text` 这种「模块.成员」形态读起来就是 import 得到、跑得起来，
+# 模块不在包内即包外引用。只认带下划线的 snake_case 模块名：`metadata.version`
+# `core.autocrlf`、`children.attached` 这类配置键与字段路径不是代码引用（实测误报三处）。
+MODULE_MEMBER_REF = re.compile(r"(?<![\w/.\\~-])([a-z][a-z0-9]*_[a-z0-9_]+)\.([a-z_][a-z0-9_]{1,})(?![\w./-])")
+KNOWN_FILE_SUFFIXES = {
+    "py", "md", "txt", "json", "jsonl", "xml", "yml", "yaml", "csv", "tsv", "log", "html", "js", "ts",
+    "sh", "bat", "cmd", "ps1", "psm1", "vbs", "pyw", "exe", "xmind", "pdf", "ini", "cfg", "toml",
+    "lock", "svg", "png", "jpg", "zip", "gz", "bak", "db", "sql",
+}
+# 包内自指的判定按目录前缀，不按「文件此刻是否存在」：安装点布局没有 examples/，
+# 用存在性会让同一条引用在不同布局下给出不同结论（本轮实测过的布局依赖形态）。
+PACKAGE_DIRS = ("tools/", "examples/")
 SCRIPT_FILE_REF = re.compile(r"\b[\w./\\\-~]+\.(?:ps1|cmd|bat|vbs|psm1|pyw)\b")
 TASK_REF = re.compile(r"(?i)(?:schtasks\b[^\n]*?/TN\s*[:=]?\s*[\"]?[\w\-. ]{3,}|计划任务\s*[\x60\"']?[\w\-.]{3,})")
 LNK_REF = re.compile(r"\b[\w\-.~ ]{2,60}\.lnk\b")
@@ -170,9 +183,23 @@ def _allowed_tool_token(line: str, token: str) -> bool:
     return token.lower().lstrip(".\\") in EXTERNAL_TOOL_ALLOW or token.lower() in EXTERNAL_TOOL_ALLOW
 
 
+def _in_package(token: str) -> bool:
+    tok = token.replace("\\", "/").lstrip("./")
+    if tok.startswith(PACKAGE_DIRS):
+        return True
+    # 裸文件名形式（不带目录）的包内自指：认「这个名字就是包内某个脚本」，
+    # 查的是 tools/ 与 examples/ 两个目录——安装点布局必有 tools/，故结论不随布局变。
+    if "/" not in tok:
+        for d in PACKAGE_DIRS:
+            if (REPO / d / tok).is_file():
+                return True
+    return False
+
+
 def check_external_script_ref(rel, text):
     """文档里写成可执行命令的包外引用必须被点名：脚本文件、计划任务、快捷方式、注册表
-    键、重启命令五种形态一起管。只报行号与规则名，绝不回显命中内容。"""
+    键、重启命令五种形态一起管，外加不带 `python` 前缀的裸脚本名与「模块.成员」两种形态
+    （读者同样会照着跑）。只报行号与规则名，绝不回显命中内容。"""
     hits = []
     for lineno, line in enumerate(text.splitlines(), 1):
         marked = any(marker in line for marker in NON_PACKAGE_MARKERS)
@@ -190,6 +217,18 @@ def check_external_script_ref(rel, text):
                 if matched and not all(_allowed_tool_token(line, tok.strip()) for tok in matched):
                     hits.append(f"{rel}:{lineno} external-command-ref")
                     break
+        if any(h.endswith(f"{rel}:{lineno} external-command-ref") for h in hits):
+            continue
+        for m in BARE_PY_REF.finditer(line):
+            if not _in_package(m.group(1)):
+                hits.append(f"{rel}:{lineno} external-command-ref")
+                break
+        else:
+            for m in MODULE_MEMBER_REF.finditer(line):
+                if m.group(2) in KNOWN_FILE_SUFFIXES or _in_package(m.group(1)):
+                    continue
+                hits.append(f"{rel}:{lineno} external-command-ref")
+                break
     return hits
 
 
@@ -727,6 +766,9 @@ SELFTEST_CASES = [
     ("external-lnk", check_external_script_ref, "Startup 目录里放了 LegacyTool.lnk 做自启动"),
     ("external-registry", check_external_script_ref, "把参数烤进 ProgId 的 shell\\open\\command 里"),
     ("external-reboot", check_external_script_ref, "条件满足后执行 shutdown /r /t 60 /f 一次"),
+    # 本轮补的两种形态：不带 python 前缀的裸脚本名与「模块.成员」引用
+    ("external-bare-py", check_external_script_ref, "改结构先动 `cm_restructure.py` 再重建"),
+    ("external-module-member", check_external_script_ref, "释义由 `def_notes.build_note_text` 全附到使用点"),
 ]
 
 
@@ -757,6 +799,15 @@ def self_test():
         ("external-author-history",
          check_external_script_ref(SYNTH, "workspace/default/x.ps1 每十分钟一次（作者本机历史，外部不可复用）"),
          "作者本机历史标注行放行"),
+        ("external-bare-py-marked",
+         check_external_script_ref(SYNTH, "改结构先动 `cm_restructure.py`（非本包发布物）再重建"),
+         "已标注的裸脚本名不报"),
+        ("external-package-self",
+         check_external_script_ref(SYNTH, "先跑 `tools/preflight.py`，再跑 `examples/example_build.py`"),
+         "包内自指（tools/ 与 examples/ 前缀）不报"),
+        ("external-config-key",
+         check_external_script_ref(SYNTH, "SKILL.md 的 metadata.version 与 git 的 core.autocrlf 要对齐"),
+         "配置键与产物文件名（build_history.jsonl）不误判成代码引用"),
         ("email-placeholder", check_personal_identity(SYNTH, "示例 someone@example.com"),
          "占位邮箱不报"),
     ]
@@ -871,6 +922,23 @@ def self_test():
     print(("PASS" if not link_blind else "FAIL") + " negative/links: 判定不了时不假报（断网≠死链）")
     print(("PASS" if rev else "FAIL") + " links: 抽掉链接采集后该检失效（反向接线证明）")
     ok = ok and pos and not link_ok and not link_blind and rev
+
+    # 反向接线（本轮新形态）：把裸脚本名与「模块.成员」两条正则致盲，
+    # 同一条人造违规必须变静默——否则新形态只是写在文件里，没接到线路上。
+    samples = {"裸脚本名": "改结构先动 `cm_restructure.py` 再重建",
+               "模块引用": "释义由 `def_notes.build_note_text` 全附到使用点"}
+    live = {k: check_external_script_ref(SYNTH, v) for k, v in samples.items()}
+    original = (globals()["BARE_PY_REF"], globals()["MODULE_MEMBER_REF"])
+    try:
+        globals()["BARE_PY_REF"] = re.compile(r"(?!x)x")
+        globals()["MODULE_MEMBER_REF"] = re.compile(r"(?!x)x")
+        blinded = {k: check_external_script_ref(SYNTH, v) for k, v in samples.items()}
+    finally:
+        globals()["BARE_PY_REF"], globals()["MODULE_MEMBER_REF"] = original
+    for kind in samples:
+        wired = bool(live[kind]) and not blinded[kind]
+        print(("PASS" if wired else "FAIL") + f" external-{kind}: 摘掉该形态后人造违规变静默（反向接线证明）")
+        ok = ok and wired
     return 0 if ok else 1
 
 

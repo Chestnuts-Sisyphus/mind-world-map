@@ -13,7 +13,7 @@ metadata:
 
 **结论：文件健康，病在渲染层。** 取证链：zip 无坏块、xmind validate 0 错 0 警告、新旧两版（7496→7516）结构逐项一致（仅 +20 节点）、非 content 条目逐字节相同、id/样式唯一、无控制字符；用户时段 XMind 日志仅 1 条无害 API 400、无 GPU 崩溃转储、无显卡驱动 TDR 事件；静置渲染截图完美。XMind 26.5（8/10 装的，未更新过）。字体报错（Unknown font format）自 8-19 起就有，非新变量；NVIDIA 驱动 8/20、UU远程 8/21 升级均早于 9/1-9/4 正常使用期。
 
-**第二阶段实锤（作者报「打开就闪黑+各种错位」后）**：①后台 PrintWindow 抓到渲染现场——黑底根节点被甩到屏幕边缘+幽灵「+」控件残影+「已编辑」脏状态恢复；②XMind file-cache 出现**跨文件缓存串味铁证**（某快照 content.json=Connectome 但 thumbnail 渲染的是 We shall 图）；③处置：10 个 Connectome 缓存条目隔离到 `workspace/_xmind_state_quarantine/`（回滚=复制回 file-cache），建换名副本 `<local-workdir>/HERMES/Connectome-全景-测试副本.xmind`；④干净配置测试被登录墙挡住（新 user-data-dir 无登录态）。⑤排障手法：后台截窗=Python ctypes PrintWindow(PW_RENDERFULLCONTENT)=`xmind_bgshot.py`，不抢焦点；作者在用电脑时禁开 GUI。
+**第二阶段实锤（作者报「打开就闪黑+各种错位」后）**：①后台 PrintWindow 抓到渲染现场——黑底根节点被甩到屏幕边缘+幽灵「+」控件残影+「已编辑」脏状态恢复；②XMind file-cache 出现**跨文件缓存串味铁证**（某快照 content.json=Connectome 但 thumbnail 渲染的是 We shall 图）；③处置：10 个 Connectome 缓存条目隔离到 `workspace/_xmind_state_quarantine/`（回滚=复制回 file-cache），建换名副本 `<local-workdir>/HERMES/Connectome-全景-测试副本.xmind`；④干净配置测试被登录墙挡住（新 user-data-dir 无登录态）。⑤排障手法：后台截窗=Python ctypes PrintWindow(PW_RENDERFULLCONTENT)=`xmind_bgshot.py`（作者本机历史，非本包发布物），不抢焦点；作者在用电脑时禁开 GUI。
 
 **根因终审（作者 A/B 实测 09-05 深夜）**：原图与换名副本在 GPU 模式下同样闪黑错位（排除文件/路径/缓存因素）；`--disable-gpu` 软渲染无闪黑但卡顿；`--disable-gpu-compositing` 混合模式不闪有点卡 → **GPU 硬件合成是根因**。三档启动器在 `<local-workdir>/HERMES/`：Xmind混合模式-Connectome.cmd（--disable-gpu-compositing）/Xmind兼容模式-Connectome.cmd（--disable-gpu）。测试副本与隔离区留作备份可随时删；原图路径仍是流水线唯一更新目标。 〔作者本机历史，外部不可复用：本行的计划任务名、脚本路径、注册表 ProgId、重启命令都是作者这台机器上的处置流水，不随包发布〕
 

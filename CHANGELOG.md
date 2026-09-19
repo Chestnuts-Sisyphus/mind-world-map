@@ -7,7 +7,14 @@ generated from the matching section below, so a version without a section here c
 
 ## [Unreleased]
 
-- **Fixed (`release.yml`)**: releases the workflow creates now carry a title. The first workflow-created release came out nameless while every hand-made release in this repo had one.
+_None yet; the release flow reopens this section after each tag (see CONTRIBUTING)._
+
+## v1.0.5 — 2026-09-19
+
+One-line workflow fix, released as a patch so that `main` and the newest tag stay equal.
+
+- **Fixed (`release.yml`)**: releases the workflow creates now carry a title. The first
+  workflow-created release came out nameless while every hand-made release in this repo had one.
 
 ## v1.0.4 — 2026-09-19
 

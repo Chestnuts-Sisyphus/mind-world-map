@@ -1,11 +1,12 @@
-# Changelog
-
-All notable changes to this project are documented here. The format follows
-[Keep a Changelog](https://www.keepachangelog.com/en/1.1.0/) and this project adheres to
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html). Release notes for each tag are
-generated from the matching section below, so a version without a section here cannot be released.
-
 ## [Unreleased]
+
+Nothing queued.
+
+## v1.2.0 — 2026-09-19 — The gates refuse five more things, and the docs say what actually ships
+
+Round four of the migration audit: every gap that the third round left as prose became an
+executable check, and the two documents that describe the package stopped claiming more than
+the package runs.
 
 - **Changed (release policy)**: version numbers now follow strict semantic versioning, stated
   rather than implied. New executable checks shipped inside `tools/` are a **minor** bump, a fixed

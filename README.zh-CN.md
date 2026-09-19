@@ -25,7 +25,7 @@
 | [references/memory/](references/memory/) | 6 份深度知识文档：视觉风格基线、CLI 本地出图流程、叙事校准、渲染闪退兼容等。 |
 | [tools/sync_check.py](tools/sync_check.py) | 只读同步闸：把仓库镜像与本地 skill 编辑正本逐文件比 SHA256（比对前先套发布面变换）；点名不一致文件。正本目录不存在则跳过，任何机器上跑都安全。 |
 | [tools/preflight.py](tools/preflight.py) | 只读发布闸：本机痕迹（盘符路径、8.3 短名、用户目录段、本机账号名）、凭据形态、相对链接与文档指针死链、公开文档点名私有件、中英章节结构漂移、身份词回归。只输出「文件:行号 + 规则名」，绝不输出命中内容。扫描集覆盖全部跟踪文本件，`tools/` 不再整目录排除：必须留规则字面量的行，靠 `# preflight:rule-literal: <理由>` 逐行豁免，光有标记不写理由本身就是错误。无扩展名跟踪件（`.gitattributes`、`.github/CODEOWNERS`）同样进泄露类检；`.gitignore` 与人工审词清单只跑泄露类检，因为它们正是那两张清单本身。`--self-test` 自证每类都会响；`--check-links-online` 联网体检外链，默认只报不断（加 `--strict-links` 才计入退出码）。 |
-| [tools/validate_xmind.py](tools/validate_xmind.py) | 交付闸在本包内的可执行形态：解 `content.json`，实装内容标准最低集（禁标点、分级字数 2-7／2-12、一级预算 ≤9、扇出 ≤13、笔记结构四不变量、`right-number` 与一级分支数一致）。退出码 0=干净／1=点名违例／2=文件不可读；`--self-test` 用合成夹具自证每检会响，`--emit-fixture` 可吐出任一夹具成真文件。 |
+| [tools/validate_xmind.py](tools/validate_xmind.py) | 交付闸在本包内的可执行形态：解 `content.json`，实装内容标准最低集八项：**banned-punctuation**（禁标点）、**tiered-length**（分级字数：组织节点 2-7／叶子 2-12）、**first-level-budget**（一级预算 ≤9）、**fanout**（扇出 ≤13）、**note-invariants**（笔记结构四不变量）、**right-number**（`right-number` 与一级分支数一致）、**folding-key**（折叠键只认 `"branch": "folded"`）、**visual-marks**（零视觉标记）。退出码 0=干净／1=点名违例／2=文件不可读；`--self-test` 用合成夹具自证每检会响，`--emit-fixture` 可吐出任一夹具成真文件。 |
 | [examples/](examples/) | 可跑的「数据/构建分离」样例：`example_data.py`（内容 + 词条台账 + 结构计划表）与 `example_build.py`（组装 `content.json`、打包 `.xmind`，再由上面那道闸验收）。它同时是反向证据：把数据里一个标题改坏，构建就被拦。 |
 
 ## 🔑 60 秒看懂核心思想
@@ -65,7 +65,7 @@ python examples/example_build.py --self-test            # 反证：把数据改�
 ## 🧪 如何验收一张图
 
 - `xmind validate <文件>` → 0 错只是底线，不是验收线。本机对官方 CLI（v0.2.3）逐条实跑取证：它**只查结构**——id 唯一性、range 边界、summary 配对、关系端点、theme 角色。警告不改变退出码；以下六种情形各自 exit 1 且报错形态可辨：文件不存在、文件不是 zip、zip 内缺 `content.json`、文件被截断、缺参数、子命令不存在。把 `PATH` 清空后同样 exit 1（报 node 不可用）而不会静默假通过。Windows 下非 shell 上下文调用要用 `xmind.cmd`（裸 `xmind` 是 npm 垫片）。
-- **内容面闸门（在本包内）** — `python tools/validate_xmind.py <文件.xmind>` 解 `content.json`，实装交付闸承诺的最低集八项：禁标点、分级字数（组织节点 2-7／叶子 2-12）、一级预算 ≤9、扇出 ≤13、笔记结构四不变量、`right-number` 与一级分支数一致、折叠键只认 `"branch": "folded"`、零视觉标记（节点无 labels/markers、表内无关系线）。退出码 0=全过、1=点名违例（节点 ID + 规则名，标题摘句不超 40 字）、2=文件不是可读 `.xmind`；`--self-test` 用内置合成夹具证明每一检都会响。
+- **内容面闸门（在本包内）** — `python tools/validate_xmind.py <文件.xmind>` 解 `content.json`，实装交付闸承诺的内容标准最低集：**banned-punctuation**（禁标点）、**tiered-length**（分级字数：组织节点 2-7／叶子 2-12）、**first-level-budget**（一级预算 ≤9）、**fanout**（扇出 ≤13）、**note-invariants**（笔记结构四不变量）、**right-number**（`right-number` 与一级分支数一致）、**folding-key**（折叠键只认 `"branch": "folded"`）、**visual-marks**（零视觉标记：节点无 labels/markers、表内无关系线）。退出码 0=全过、1=点名违例（节点 ID + 规则名，标题摘句不超 40 字）、2=文件不是可读 `.xmind`；`--self-test` 用内置合成夹具证明每一检都会响。
 - 无头渲染取证：打开文件的**副本**（绝不碰原件），禁用 GPU 硬件合成，用 PrintWindow 抓窗，并**按非白内容占比轮询——占比 >2% 才算渲染就绪**。固定秒数盲抓必然产生全白假阴性（参照机器实测冷启动空白约 55 秒）。Windows OCR 读图须传反斜杠绝对路径。
 - 任何 `git checkout` 之后重跑两道闸——见下文「如何更新」。
 
@@ -90,7 +90,7 @@ mind-world-map/
 │   ├── example_data.py           # 数据层：内容 + 词条表 + 结构计划表
 │   └── example_build.py          # 构建层：数据 → content.json → .xmind → 过闸
 ├── .github/
-│   ├── workflows/ci.yml          # 跑两道闸 + 链接与结构检查
+│   ├── workflows/ci.yml          # 跑六步：Sync gate、Publication gate、Tool self-tests、Example build chain、Structure validation (advisory)、External link health (advisory)
 │   ├── workflows/release.yml     # tag → GitHub Release，正文取自 CHANGELOG
 │   ├── workflows/link-watch.yml  # 每周与手动的体检式外链扫描（不阻断）
 │   ├── dependabot.yml            # 给钉死 SHA 的 action 提供升级通道

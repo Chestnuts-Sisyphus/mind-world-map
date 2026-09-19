@@ -30,6 +30,16 @@
   (@xmindltd/xwind-cli). Runs only if CLI available; otherwise prints "skipped" and exits 0. Never
   blocks CI. Windows users should use `xmind.cmd` instead of bare `xmind`. Browser-based auth login
   required only once per machine. Package not shipped with this repo — users must install separately.
+- **Fixed (`README.md`, `README.zh-CN.md`)**: v1.2.1 claimed "README no longer hard-codes check counts"
+  but four places still said "八项检"/"six checks". This round replaces all prose counts with explicit
+  check name lists matching `validate_xmind.CHECKS`: banned-punctuation, tiered-length, first-level-budget,
+  fanout, note-invariants, right-number, folding-key, visual-marks. Machine-checkable verification added
+  via `tools/check_readme_ci.py` to ensure README steps align with ci.yml steps[].name.
+- **Added (`examples/example_data.py`)**: folded node example with `"branch": "folded"` key. Build chain
+  passes package gate; `example_build.py --self-test` proves reverse wiring ("folded":true → exit 1).
+- **Added (`tools/check_readme_ci.py`)**: L6 machine check comparing README CI descriptions against
+  `.github/workflows/ci.yml` steps[].name. Missing/mismatched steps trigger exit 1. Self-test includes
+  positive/negative/reverse-wiring cases.
 
 ## v1.2.1 — 2026-09-19 — Frozen check counts are the ones that go stale
 

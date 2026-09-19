@@ -67,11 +67,11 @@ python examples/example_build.py --self-test            # reverse proof: break o
 ## 🧪 How to verify a map
 
 - **Content gate (in this package)** — `python tools/validate_xmind.py <file.xmind>` unpacks
-  `content.json` and enforces the minimum set the delivery gate promises: punctuation ban,
-  graded node length (2-7 organisational / 2-12 leaf), top-level budget ≤ 9, fan-out ≤ 13,
-  the four note invariants, and `right-number` matching the real branch count. Exit 0 = clean;
-  exit 1 names `node id + rule` (never more than 40 characters of the title); exit 2 = the file
-  is not a readable `.xmind`. `--self-test` proves every one of those checks actually fires.
+  `content.json` and enforces the minimum set the delivery gate promises: eight checks today
+  (`banned-punctuation`, `tiered-length`, `first-level-budget`, `fanout`, `note-invariants`,
+  `right-number`, `folding-key`, `visual-marks`). Exit 0 = clean; exit 1 names violations
+  (node ID + rule name, never more than 40 characters of the title); exit 2 = not a readable
+  `.xmind`. `--self-test` proves every one of those checks actually fires.
 - **Structure floor (official CLI)** — `xmind validate <file>` → 0 errors is required but not
   sufficient. Measured against the official CLI (v0.2.3) on this machine: it checks
   **structure only** — id uniqueness, range bounds, summary pairing, relation endpoints, theme
@@ -104,7 +104,7 @@ mind-world-map/
 │   ├── example_data.py           # data layer: content + term ledger + structure plan table
 │   └── example_build.py          # build layer: data -> content.json -> .xmind -> verified
 ├── .github/
-│   ├── workflows/ci.yml          # runs both gates + link & structure checks
+│   ├── workflows/ci.yml          # runs six steps: Sync gate, Publication gate, Tool self-tests, Example build chain, Structure validation (advisory), External link health (advisory)
 │   ├── workflows/release.yml     # tag -> GitHub release, body from the changelog section
 │   ├── workflows/link-watch.yml  # weekly + manual advisory external-link sweep
 │   ├── dependabot.yml            # keeps the SHA-pinned actions up to date

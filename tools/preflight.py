@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""发布面预检闸（零写盘）：提交前扫描整个公开包，抓「本机痕迹 / 凭据形态 / 死链 /
-私有件点名 / 双语章节结构 / 身份回归」六类问题。
+"""发布面预检闸（零写盘）：提交前扫描整个公开包，抓「本机痕迹 / 本机网络细节 /
+凭据形态 / 个人标识形态 / 死链 / 私有件点名 / 双语章节结构 / 身份回归 /
+包外脚本命令引用」九类问题。
 
 用法：
     python tools/preflight.py                 # 扫全仓，0=干净
     python tools/preflight.py --self-test     # 每类注入一例人造违规，验证闸真的会响
+
+同一道闸也可从本地 skill 正本目录运行（tools/ 已随包同步到安装点）：扫描前先套
+发布面变换表，因此正本里的原文身份词与盘符路径会先被变换掉，剩下的才是真泄露。
 
 输出只给「文件:行号 + 规则名」，绝不打印命中内容——扫描产物本身不得成为泄露载体。
 退出码：0=无问题，1=有问题（或 self-test 有类不响）。
@@ -37,8 +41,36 @@ REGEX_RULES = [
     (re.compile(r"(?<![\w:])[A-Za-z]:[/\\]+(?:Users[/\\][\w.~\- ]+[/\\])?(?:AI[/\\])?"), "<local-workdir>/"),
 ]
 
-# 身份类关键词：公开包一旦回归即由本闸拦下（本地正本不受影响）。
-IDENTITY_TERMS = ["栗子"]
+# 身份类词表：不写死在代码里，改由人工审词清单 tools/identity-terms.tsv 承载
+# （block=命中即失败；exempt=命中不报但必须留理由）。加词/改判都改那张表，不改代码。
+IDENTITY_TERMS_FILE = Path(__file__).resolve().parent / "identity-terms.tsv"
+
+
+def load_identity_terms(path=None):
+    """解析审词清单，返回 (block 词, exempt 词)。清单缺失或无可判定行=直接报错：
+    「词表读不到」绝不能退化成「没有需要拦的词」。"""
+    terms_file = IDENTITY_TERMS_FILE if path is None else Path(path)
+    if not terms_file.is_file():
+        raise FileNotFoundError(f"身份审词清单缺失：{terms_file}")
+    blocked, exempted = [], []
+    for line in terms_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = [c.strip() for c in line.split("\t")]
+        if len(parts) < 3 or not parts[1]:
+            continue
+        verdict, term = parts[0].lower(), parts[1]
+        if verdict == "block":
+            blocked.append(term)
+        elif verdict == "exempt":
+            exempted.append(term)
+    if not blocked and not exempted:
+        raise ValueError(f"身份审词清单无任何可判定行：{terms_file}")
+    return blocked, exempted
+
+
+IDENTITY_BLOCK_TERMS, IDENTITY_EXEMPT_TERMS = load_identity_terms()
 
 
 def apply_publish_rules(text: str) -> str:
@@ -78,6 +110,28 @@ PRIVATE_FILE_HINT = re.compile(r"\b([\w.\-]+)\.md\b")
 WIKILINK = re.compile(r"\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
 MD_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 
+# 本机网络细节：回环端点与代理端口都是「这台机器」的指纹，与本机路径同级处理。
+# 端口按形态拦（代理语境内 4 位以上数字），不写死具体端口号——否则闸退化成单点黑名单。
+LOCAL_NETWORK_RULES = [
+    ("loopback-endpoint", re.compile(
+        r"(?:127\.0\.0\.1|\blocalhost\b|0\.0\.0\.0|\[?::1\]?)(?:[:：]\s*\d{2,5})?")),
+    ("local-proxy-port", re.compile(
+        r"(?i)(?:proxy|proxies|clash|v2ray|surge|shadowsocks|socks|代理|端口)[^\n]{0,8}?\b\d{4,5}\b")),
+]
+
+# 个人标识形态：邮箱（含 @ 的账号形态）。占位与noreply 域名不报，文档示例才能留。
+EMAIL_PLACEHOLDER = re.compile(r"(?i)@(?:example\.(?:com|org|net)|localhost|noreply\.|gitlab\.)")
+PERSONAL_IDENTITY_RULES = [
+    # 域名最后一段必须是纯字母 TLD：npm 的 pkg@1.2.3 形态不是邮箱，实测会假阳性
+    ("personal-email", re.compile(
+        r"\b[A-Za-z0-9][A-Za-z0-9._%+\-]*@[A-Za-z0-9][A-Za-z0-9\-]*(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}\b")),
+]
+
+# 包外脚本命令引用：文档里写成可执行命令的 `python X.py`，脚本必须是本包发布物；
+# 否则同一行须显式标注「非本包发布物」，让读者知道这条命令不在包里。
+PYTHON_CMD_REF = re.compile(r"\bpython[3]?\s+([A-Za-z0-9_./\\:\-<>]+\.py)")
+NON_PACKAGE_MARKERS = ("非本包发布物", "未随包发布", "not shipped with this package")
+
 
 def tracked_text_files():
     """扫描范围 = 仓库内所有文本类跟踪文件（工具脚本自身承载规则字面量，排除之）；
@@ -100,7 +154,10 @@ def tracked_text_files():
 
 
 def check_private_present(existing=None):
-    """被 .gitignore 排除的私有文档出现在仓库目录里 = 误拷入包（虽不被跟踪，仍是泄露隐患）。"""
+    """被 .gitignore 排除的私有文档出现在仓库目录里 = 误拷入包（虽不被跟踪，仍是泄露隐患）。
+    安装点视角（无 .gitignore）下私有件留在正本里是设计口径，不做此项检查。"""
+    if not is_repo_layout():
+        return []
     present = {rel for rel in gitignored_doc_paths() if (REPO / rel).is_file()} if existing is None else set(existing)
     return [f"{rel}:1 private-doc-in-package" for rel in sorted(present)]
 
@@ -116,11 +173,27 @@ def known_doc_stems():
     return {p.stem for _, p in tracked_text_files() if p.suffix.lower() == ".md"}
 
 
+# 与仓库 .gitignore 同源的私有件清单：安装点目录没有 .gitignore，靠这份常量识别私有文档。
+LOCAL_PRIVATE_RELS = [
+    "QODER-MIGRATION.md",
+    "references/memory/cm-closure-mindmap-pipeline.md",
+    "references/memory/cm-zhongshen-mindmap-delivered.md",
+    "references/memory/connectome-cm-core-definition.md",
+    "references/memory/connectome-mindmap-project.md",
+]
+
+
+def is_repo_layout():
+    """有 .gitignore = 发布镜像仓库；没有 = 本地 skill 正本目录（安装点视角）。"""
+    return (REPO / ".gitignore").is_file()
+
+
 def gitignored_doc_paths():
-    """.gitignore 中显式列出的 *.md 相对路径 = 有意留在本地的私有件。"""
+    """.gitignore 中显式列出的 *.md 相对路径 = 有意留在本地的私有件。
+    安装点目录无 .gitignore，退回用 LOCAL_PRIVATE_RELS 同口径识别。"""
     gi = REPO / ".gitignore"
     if not gi.is_file():
-        return set()
+        return set(LOCAL_PRIVATE_RELS)
     return {
         line.strip()
         for line in gi.read_text(encoding="utf-8").splitlines()
@@ -156,8 +229,38 @@ def check_local_trace(rel, text):
 
 def check_identity(rel, text):
     """规则名固定为 identity-term：被跟踪词本身绝不进输出（扫描产物不得含命中原文）。"""
-    rules = [("identity-term", re.compile(re.escape(term))) for term in IDENTITY_TERMS]
+    rules = [("identity-term", re.compile(re.escape(term))) for term in IDENTITY_BLOCK_TERMS]
     return scan_pattern(rel, text, rules)
+
+
+def check_local_network(rel, text):
+    return scan_pattern(rel, text, LOCAL_NETWORK_RULES)
+
+
+def check_personal_identity(rel, text):
+    """邮箱形态的个人标识：占位/noreply 域名放行，其余一律点名。"""
+    hits = []
+    for lineno, line in enumerate(text.splitlines(), 1):
+        for m in PERSONAL_IDENTITY_RULES[0][1].finditer(line):
+            if not EMAIL_PLACEHOLDER.search(m.group(0)):
+                hits.append(f"{rel}:{lineno} personal-email")
+                break
+    return hits
+
+
+def check_external_script_ref(rel, text):
+    """文档里的 `python X.py` 必须指向包内脚本，否则同一行须标注非本包发布物。
+    只点名行号，不回显命令内容。"""
+    hits = []
+    for lineno, line in enumerate(text.splitlines(), 1):
+        for m in PYTHON_CMD_REF.finditer(line):
+            script = m.group(1).replace("\\", "/").lstrip("./")
+            if (REPO / script).is_file():
+                continue
+            if any(marker in line for marker in NON_PACKAGE_MARKERS):
+                continue
+            hits.append(f"{rel}:{lineno} external-script-ref")
+    return hits
 
 
 def check_credentials(rel, text):
@@ -301,6 +404,10 @@ SELFTEST_CASES = [
     ("credentials", check_credentials, "export access_token = " + "a" * 24),
     ("dead-link", check_links, "参见 [[no-such-doc-here]] 与 [文本](tools/nope.py)"),
     ("private-doc", check_private_mentions, "详见 " + "connectome" + "-cm-core-definition.md"),
+    # 本轮注入实验证实的三类漏网：合成样本，不含任何真实本机端口/真实邮箱
+    ("local-network", check_local_network, "回环端点 127.0.0.1:9999 与 Clash 代理 9999 下载稳"),
+    ("personal-identity", check_personal_identity, "联系作者 " + "who" + "@" + "author.internal-host.test"),
+    ("external-script", check_external_script_ref, "先跑 python not_shipped_tool.py 一遍"),
 ]
 
 
@@ -318,6 +425,20 @@ def self_test():
         else:
             print(f"FAIL {name}: 人造违规未触发")
             ok = False
+    # 阴性自证：闸不能只会响——三条例外通路必须真的放行，否则它是噪音源
+    negatives = [
+        ("identity-exempt", check_identity(SYNTH, "上一代工具 " + IDENTITY_EXEMPT_TERMS[0] + " 的历史语境"),
+         "审词清单 exempt 词不报"),
+        ("external-script-marked",
+         check_external_script_ref(SYNTH, "跑 python not_shipped.py（该脚本非本包发布物）"),
+         "已标注非本包发布物的命令不报"),
+        ("email-placeholder", check_personal_identity(SYNTH, "示例 someone@example.com"),
+         "占位邮箱不报"),
+    ]
+    for name, hits, why in negatives:
+        print(("PASS" if not hits else "FAIL") + f" negative/{name}: {why}")
+        ok = ok and not hits
+
     # 双语结构闸用两个内存文档自证
     en_lv = [lv for lv, _ in headings("# A\n## B\n")]
     zh_lv = [lv for lv, _ in headings("# A\n")]
@@ -362,23 +483,28 @@ def main() -> int:
 
     findings = []
     for rel, path in iter_public_md():
-        text = read(path)
+        text = apply_publish_rules(read(path))
         findings += check_local_trace(rel, text)
+        findings += check_local_network(rel, text)
+        findings += check_personal_identity(rel, text)
         findings += check_identity(rel, text)
         findings += check_credentials(rel, text)
         findings += check_links(rel, text)
         findings += check_private_mentions(rel, text)
+        findings += check_external_script_ref(rel, text)
     findings += check_bilingual_structure()
     findings += check_private_present()
     findings += check_skill_frontmatter()
     findings += check_workflows_ascii()
 
-    # 非 md 的发布文件（LICENSE / yml 配置）只跑泄露类三检
+    # 非 md 的发布文件（LICENSE / yml 配置）只跑泄露类检测
     for rel, path in tracked_text_files():
         if path.suffix.lower() == ".md":
             continue
-        text = read(path)
+        text = apply_publish_rules(read(path))
         findings += check_local_trace(rel, text)
+        findings += check_local_network(rel, text)
+        findings += check_personal_identity(rel, text)
         findings += check_credentials(rel, text)
         findings += check_identity(rel, text)
 

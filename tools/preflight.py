@@ -18,6 +18,7 @@ import getpass
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -205,10 +206,12 @@ def is_repo_layout():
     return (REPO / ".gitignore").is_file()
 
 
-def gitignored_doc_paths():
+def gitignored_doc_paths(repo=None):
     """.gitignore 中显式列出的 *.md 相对路径 = 有意留在本地的私有件。
-    安装点目录无 .gitignore，退回用 LOCAL_PRIVATE_RELS 同口径识别。"""
-    gi = REPO / ".gitignore"
+    安装点目录无 .gitignore，退回用 LOCAL_PRIVATE_RELS 同口径识别。
+    repo 参数供发布器的临时假仓库自测使用，默认取当前运行布局。"""
+    repo = REPO if repo is None else Path(repo)
+    gi = repo / ".gitignore"
     if not gi.is_file():
         return set(LOCAL_PRIVATE_RELS)
     return {
@@ -506,6 +509,60 @@ def check_changelog():
     return hits
 
 
+def crlf_hits(rels, repo: Path = REPO):
+    """字节级 CRLF 检测（纯函数，取数由调用方给）。
+
+    为什么按字节而不是文本读：Windows 下 Git Bash 的 grep 判 \\r 会假报（本轮踩过），
+    而行尾恰恰是 `.gitattributes` 已钉 LF、但编辑工具仍可能写回 CRLF 的地方。"""
+    hits = []
+    for rel in rels:
+        p = repo / rel
+        if not p.is_file():
+            continue
+        try:
+            if b"\r\n" in p.read_bytes():
+                hits.append(f"{rel}:1 crlf-in-tracked-file")
+        except OSError:
+            continue
+    return hits
+
+
+def check_crlf():
+    """仓库布局扫跟踪文件清单；安装点布局没有 git，扫包里全部文本发布件——
+    两种布局都在真检，不做「取不到就静默跳过」（那正是本轮被抓住的自证式漏洞）。"""
+    if is_repo_layout():
+        tracked = git_tracked_files()
+        if tracked:
+            return crlf_hits(tracked)
+    return crlf_hits([p.relative_to(REPO).as_posix() for _, p in tracked_text_files()])
+
+
+SKILL_VERSION = re.compile(r"^\s+version:\s*[\"']?(\d+\.\d+\.\d+)[\"']?\s*$", re.M)
+
+
+def version_drift(skill_text: str, tag: str):
+    """SKILL.md 的 metadata.version 与最新 tag 必须对齐（纯函数）。
+
+    tag 为空 = 拿不到 tag（浅克隆、CI 的默认 checkout）：此时不假报，但也不算通过——
+    CI 侧靠 `fetch-depth: 0` 把 tag 取全，让这条闸真的咬得住。"""
+    m = SKILL_VERSION.search(skill_text)
+    if not m:
+        return ["SKILL.md:2 version-tag-drift (metadata.version 读不到)"]
+    version = m.group(1)
+    if not tag:
+        return []
+    if tag.strip() != f"v{version}":
+        return [f"SKILL.md:2 version-tag-drift (SKILL {version} vs {tag.strip()})"]
+    return []
+
+
+def check_version_tag():
+    skill = REPO / "SKILL.md"
+    if not skill.is_file():
+        return []
+    return version_drift(read(skill), latest_local_tag())
+
+
 def check_skill_frontmatter():
     skill = REPO / "SKILL.md"
     if not skill.is_file():
@@ -652,6 +709,41 @@ def self_test():
     hits = non_ascii_hits(".github/workflows/ci.yml", "# comment ok\n# 中文注释\n")
     print(("PASS" if hits else "FAIL") + " workflow-ascii: 人造非 ASCII 行被点名")
     ok = ok and len(hits) == 1
+
+    # 行尾闸（本轮新检）：临时目录里造一份 CRLF、一份 LF，正例点名、负例放行。
+    # 走纯函数 + 注入目录，所以在仓库/安装点/clone 三种布局下结论一致。
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        (tmp / "crlf.md").write_bytes(b"line one\r\nline two\r\n")
+        (tmp / "lf.md").write_bytes(b"line one\nline two\n")
+        hits = crlf_hits(["crlf.md", "lf.md"], repo=tmp)
+        pos = hits == ["crlf.md:1 crlf-in-tracked-file"]
+        neg = not crlf_hits(["lf.md"], repo=tmp)
+        # 反向接线：把字节读取改成文本读取（文本模式会把 CRLF 吞成 LF）就检不出来
+        original_read = Path.read_bytes
+        try:
+            globals()["Path"].read_bytes = lambda self: original_read(self).replace(b"\r\n", b"\n")
+            weakened = crlf_hits(["crlf.md"], repo=tmp)
+        finally:
+            globals()["Path"].read_bytes = original_read
+        print(("PASS" if pos else "FAIL") + " crlf: 人造 CRLF 文件被点名（不含内容）")
+        print(("PASS" if neg else "FAIL") + " negative/crlf: LF 文件不误报")
+        print(("PASS" if not weakened else "FAIL")
+              + " crlf: 去掉字节级读取后该检失效（反向接线证明）")
+        ok = ok and pos and neg and not weakened
+
+    # 版本对齐闸（本轮新检）：漂移必报、对齐放行、拿不到 tag 时不假报
+    skill_text = 'name: x\nmetadata:\n  version: "1.2.3"\n'
+    drift = version_drift(skill_text, "v1.2.4")
+    aligned = version_drift(skill_text, "v1.2.3")
+    no_tag = version_drift(skill_text, "")
+    no_version = version_drift("metadata:\n  author: 作者\n", "v1.2.3")
+    print(("PASS" if drift and "version-tag-drift" in drift[0] else "FAIL")
+          + " version-tag: SKILL 版本与最新 tag 不等被点名")
+    print(("PASS" if not aligned else "FAIL") + " negative/version-tag: 对齐时不报")
+    print(("PASS" if not no_tag else "FAIL") + " negative/version-tag: 取不到 tag 时不假报")
+    print(("PASS" if no_version else "FAIL") + " version-tag: 读不到 version 也报（不许静默通过）")
+    ok = ok and bool(drift) and not aligned and not no_tag and bool(no_version)
     return 0 if ok else 1
 
 
@@ -690,6 +782,8 @@ def main() -> int:
     findings += check_workflows_ascii()
     findings += check_readme_layout()
     findings += check_changelog()
+    findings += check_crlf()
+    findings += check_version_tag()
 
     # 非 md 的发布文件（LICENSE / yml 配置）只跑泄露类检测
     for rel, path in tracked_text_files():

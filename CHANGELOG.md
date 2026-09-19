@@ -7,7 +7,17 @@ generated from the matching section below, so a version without a section here c
 
 ## [Unreleased]
 
-_None yet; the release flow reopens this section after each tag (see CONTRIBUTING)._
+- **Added (`tools/publish.py`, `tools/sync_check.py`, `tools/release_notes.py`)**: each now
+  carries its own `--self-test`, run inside a throwaway temp directory so no real install
+  point is ever written. The publisher proves mirror hygiene, idempotence, edit-source
+  direction and the non-repo refusal; the sync gate proves drift and unredacted-mirror
+  detection in both layouts; the extractor proves heading variants and refuses a
+  bare-version title. CI runs all four self-tests.
+- **Added (`tools/preflight.py`)**: two checks that until now lived as manual byte greps --
+  `crlf-in-tracked-file` (byte-level CRLF in any tracked file) and `version-tag-drift`
+  (`SKILL.md` metadata version must equal the newest `v*` tag). Both fire on injected
+  violations and stay silent on the clean case; CI checkout now fetches tags so the
+  version check has something real to compare against.
 
 ## v1.0.7 — 2026-09-19
 

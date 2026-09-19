@@ -14,6 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history + tags: the version/tag alignment check needs the tag list
+          # to be present, otherwise it silently has nothing to compare against.
+          fetch-depth: 0
+          fetch-tags: true
 
       - uses: actions/setup-python@v5
         with:
@@ -31,6 +36,13 @@ jobs:
         run: python tools/preflight.py
 
       # A green gate nobody injected a fault into is not a green gate: prove each
-      # category still fires.
-      - name: Gate self-test
-        run: python tools/preflight.py --self-test
+      # category still fires. Every tool in tools/ carries its own --self-test for
+      # the same reason -- the writer and the extractor are not exempt just because
+      # they look trivial. All cases run inside a throwaway temp directory, so CI
+      # (which has no local skill masters) exercises the exact same code path.
+      - name: Tool self-tests
+        run: |
+          python tools/preflight.py --self-test
+          python tools/release_notes.py --self-test
+          python tools/sync_check.py --self-test
+          python tools/publish.py --self-test

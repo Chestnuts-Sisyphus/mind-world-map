@@ -13,6 +13,13 @@ generated from the matching section below, so a version without a section here c
   direction and the non-repo refusal; the sync gate proves drift and unredacted-mirror
   detection in both layouts; the extractor proves heading variants and refuses a
   bare-version title. CI runs all four self-tests.
+- **Added (`tools/preflight.py`)**: two more publication checks -- `crlf-in-tracked-file`
+  (byte-level carriage-return scan of every tracked text file, because the shell-level
+  equivalent false-reports under Git Bash) and `version-tag-drift` (the version declared in
+  SKILL.md metadata must equal the newest tag, so the "bumped by hand and forgot" case is now
+  machine-caught). Both have a firing case and a whitelisted case in `--self-test`;
+  `crlf-in-tracked-file` was additionally proven end to end by writing a real CRLF into
+  README.md, watching the gate name it, and restoring the file.
 - **Added (`tools/validate_xmind.py`)**: the delivery gate is finally executable from inside the
   package. It unpacks `content.json` and enforces the content minimum set -- punctuation ban,
   graded node length (2-7 organisational / 2-12 leaf, ASCII term keys exempt), top-level budget
@@ -51,6 +58,17 @@ generated from the matching section below, so a version without a section here c
 - **Added (SKILL.md)**: a one-line glossary for the three private names that appear in the docs
   (`Connectome`, `ZCode`, `MindmapLoop`), so an outside reader can parse the references without
   the names being stripped from the history.
+- **Added (release workflow)**: the workflow now compares the tag's commit against `main` HEAD and
+  fails before creating anything when they differ, so "tagged an old commit and shipped a Release"
+  is machine-refused rather than a review habit. Proven red by tagging a historical commit and
+  watching the run fail with no Release created.
+- **Changed (release workflow, `tools/release_notes.py`)**: the Release title is no longer the bare
+  tag. It is assembled as version + the section subject from CHANGELOG, and the extractor refuses
+  a heading that carries no subject -- a date-only section can no longer produce a six-character
+  release name. Section headings now follow the convention version — date — subject.
+- **Changed (workflows)**: both workflows pin their third-party actions by commit SHA instead of
+  a mutable major tag, and `.github/dependabot.yml` (github-actions ecosystem, weekly, prefixed
+  commit) is what keeps those pins current -- without it a SHA pin silently rots.
 
 ## v1.0.7 — 2026-09-19
 

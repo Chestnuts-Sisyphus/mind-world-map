@@ -105,6 +105,7 @@ mind-world-map/
 ├── .github/
 │   ├── workflows/ci.yml          # runs both gates + link & structure checks
 │   ├── workflows/release.yml     # tag -> GitHub release, body from the changelog section
+│   ├── dependabot.yml            # keeps the SHA-pinned actions up to date
 │   ├── ISSUE_TEMPLATE/           # bug / feature templates
 │   ├── CODEOWNERS                # review ownership for the capability layer
 │   └── pull_request_template.md  # contributor checklist (gates included)

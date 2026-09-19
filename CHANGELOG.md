@@ -15,6 +15,25 @@ generated from the matching section below, so a version without a section here c
   `tools/validate_xmind.py` (folding key, banned visual markers). Published tags are never moved or
   retargeted, and every cut leaves a local `pre-vX.Y.Z` tag at the previous HEAD, unpushed, so a
   rollback point exists without touching the public ref list.
+- **Added (`tools/preflight.py`)**: two more shapes of the `external-command-ref` rule -- a bare
+  script name with no `python` prefix, and a `module.member` code reference. Both read as
+  "run this" to a reader, and the old rule measured 24 unlabelled references across SKILL.md, the
+  reference docs and the published memory notes; the shapes fire on `cm_restructure.py` and
+  `def_notes.build_note_text`, both not shipped with this package. Package self-pointers are judged
+  by directory prefix rather than file existence, because install-point layouts have no `examples/`
+  and the verdict must not depend on where the gate runs; config keys and build artefacts are
+  excluded after three measured false positives. Each new shape has a positive, negatives (labelled
+  line, package self-reference) and a reverse-wiring proof that blinds the shape and watches the
+  same violation go quiet. Self-test 40 -> 47 cases.
+- **Added (`tools/validate_xmind.py`)**: two more content checks, taking the shipped set from six to
+  eight. `folding-key` accepts only `"branch": "folded"` and names `"folded": true`, `"collapsed"`
+  and a `branch` value that is not `folded` -- those keys do not fold *at all*, the failure that cost
+  a whole rebuild on 09-04. `visual-marks` bans `labels` / `markers` on any topic and relationship
+  lines at sheet level (the standard that killed 7 test connectors on 09-04). Fixtures per check, a
+  compliant-folding negative so the new rules are not noise, reverse-wiring per rule, `--emit-fixture`
+  for all of them, and end-to-end proof on real `.xmind` files: exit 1 naming `folding-key`,
+  `visual-marks` and the sheet-level line case, exit 0 for the correct key, zero regression on the
+  example map and the older fixtures. Self-test 37 -> 58 cases.
 
 ## v1.1.1 — 2026-09-19 — External links get watched, and the docs stop overstating protection
 

@@ -33,7 +33,7 @@ Every rule in here is a scar: distilled from six real rounds of rework (2026-08 
 - **Closure law** — any person unfamiliar with the subject, reading only the map, understands everything. This is the acceptance bar.
 - **Proposition paths** — the unit of understanding is a proposition, not a noun; every root-to-leaf path must read as a coherent sentence. Bare noun nodes without substance get deleted.
 - **Term → note pipeline** — definitions live in a data-layer term ledger and are auto-injected into notes at every usage point ("one note = one small text tree"), so the tree stays clean (2–7 character labels, zero punctuation) while every term is explained exactly where it first appears.
-- **Two generations of machine QA** — build-time blocking gates (punctuation ban, five term gates, number-grounding gate, top-branch budget ≤ 9, fan-out ≤ 13) plus eight post-hoc checks, every one sunk from a real regression. Layering, stated plainly: what is runnable *inside this package* is the content-standard set in `tools/validate_xmind.py` (six checks today) plus the minimal data/build pair in `examples/`, which is the acceptance line any shipped map must pass. The five term gates and the eight post-hoc checks consume a project's own term ledger and builder registries, so the public package carries the standard they implement, not the data they read — rebuild them in your project's data layer following [SKILL.md](SKILL.md).
+- **Two generations of machine QA** — build-time blocking gates (punctuation ban, five term gates, number-grounding gate, top-branch budget ≤ 9, fan-out ≤ 13) plus eight post-hoc checks, every one sunk from a real regression. Layering, stated plainly: what is runnable *inside this package* is the content-standard set in `tools/validate_xmind.py` (eight checks today) plus the minimal data/build pair in `examples/`, which is the acceptance line any shipped map must pass. The five term gates and the eight post-hoc checks consume a project's own term ledger and builder registries, so the public package carries the standard they implement, not the data they read — rebuild them in your project's data layer following [SKILL.md](SKILL.md).
 - **Data/build separation** — content lives in data files, structure in builder scripts; the map is a deterministic function of its data. Idempotent rebuilds, timestamped backups, diff reports. Never hand-edit an `.xmind`.
 - **Budget folding** — recursive multi-layer folding (subtree budget 50) with single-chain exemption, using the correct XMind key `"branch": "folded"`.
 
@@ -60,7 +60,7 @@ with the single acceptance line the package ships:
 ```bash
 python examples/example_build.py                        # data -> content.json -> examples/out/example.xmind
 python tools/validate_xmind.py examples/out/example.xmind   # the delivery gate: exit 0
-python tools/validate_xmind.py --self-test              # proof that each of the six checks fires
+python tools/validate_xmind.py --self-test              # proof that each of the eight checks fires
 python examples/example_build.py --self-test            # reverse proof: break one title, build fails
 ```
 

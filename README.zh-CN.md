@@ -33,7 +33,7 @@
 - **闭包铁律**——不了解主体的人只读图就能懂一切，这是验收线。
 - **命题路径**——理解单位是命题不是名词；每条根到叶路径须读成一句人话，无实义的裸名词直接删。
 - **词条→笔记管线**——定义活在数据层词条台账里，构建时自动附加到每个使用点的 notes（「一条笔记=一棵文字小树」），树保持干净（2-7 字标签、零标点），术语在首用处被解释。
-- **两代机器 QA**——构建期阻断闸（禁标点、词条五闸、成绩口径闸、一级预算 ≤9、扇出 ≤13）+ 事后八检，每检都由一次真实返工沉淀。分层口径说清楚：**包内直接可跑**的是 `tools/validate_xmind.py` 里的内容标准检查（当前六检）与 `examples/` 的最小数据/构建件，这张图交付前必须过的就是这条线；词条五闸与事后八检要吃项目自己的词条表与构建器台账，公开包带的是它们所实现的标准、不是它们所读的数据，外部使用方按 [SKILL.md](SKILL.md) 口径在自家数据层自建。
+- **两代机器 QA**——构建期阻断闸（禁标点、词条五闸、成绩口径闸、一级预算 ≤9、扇出 ≤13）+ 事后八检，每检都由一次真实返工沉淀。分层口径说清楚：**包内直接可跑**的是 `tools/validate_xmind.py` 里的内容标准检查（当前八检）与 `examples/` 的最小数据/构建件，这张图交付前必须过的就是这条线；词条五闸与事后八检要吃项目自己的词条表与构建器台账，公开包带的是它们所实现的标准、不是它们所读的数据，外部使用方按 [SKILL.md](SKILL.md) 口径在自家数据层自建。
 - **数据/构建分离**——内容进数据文件、结构进构建脚本，图是数据的确定性函数：幂等重建、时间戳备份、diff 报告。绝不手改 `.xmind`。
 - **预算折叠**——递归多层折叠（子树预算 50）+ 单链豁免，折叠键用 XMind 正确写法 `"branch": "folded"`。
 
@@ -58,7 +58,7 @@ cp -r mind-world-map ~/.claude/skills/mindmap-engineering
 ```bash
 python examples/example_build.py                        # 数据 -> content.json -> examples/out/example.xmind
 python tools/validate_xmind.py examples/out/example.xmind   # 交付闸：exit 0
-python tools/validate_xmind.py --self-test              # 自证六项检都会响
+python tools/validate_xmind.py --self-test              # 自证八项检都会响
 python examples/example_build.py --self-test            # 反证：把数据改坏一处，构建即被拦
 ```
 

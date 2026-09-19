@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""成品校验闸（交付闸第 1 条所说的 validate_map 在包内的落点）。
+"""成品校验闸（交付四件套第 1 条的内容面闸门）。
 
-解 `.xmind` 里的 content.json，对成品树跑「内容标准最低集」六项机器检查：
+解 `.xmind` 里的 content.json，对成品树跑「内容标准最低集」八项机器检查：
 
 1. banned-punctuation —— 标题禁标点（`：·→—/，、；。！？`）
 2. tiered-length      —— 分级字数：组织节点（有孩子）2-7，叶子节点 2-12
@@ -9,12 +9,15 @@
 4. fanout             —— 单节点子点数 ≤13
 5. note-invariants    —— 笔记结构不变量：行形态 / 顶格词名在标题 / 一词一次 / 依赖链闭无环
 6. right-number       —— rootTopic.extensions 的 right-number 与一级分支数一致
+7. folding-key        —— 折叠只认 `"branch": "folded"`；`"folded": true` 一类键桌面根本不读
+8. visual-marks       —— 节点不得带 labels / markers，表内不得有关系线（标准=零视觉标记）
 
 用法：
     python tools/validate_xmind.py <文件.xmind>            # 0=全过，1=有违例
     python tools/validate_xmind.py <文件.xmind> --json     # 机器可读输出
     python tools/validate_xmind.py <文件.xmind> --quiet    # 只报计数
-    python tools/validate_xmind.py --self-test             # 合成夹具自证六检
+    python tools/validate_xmind.py --self-test             # 合成夹具自证八检
+    python tools/validate_xmind.py --emit-fixture 错误折叠键 --out /tmp/x.xmind
 
 它**不查**官方 `xmind validate` 管的结构五类（id 唯一、range、summary 配对、关系端点、
 theme 角色）——那条线由 CLI 守，本器只守内容标准，两者相加才是完整验收线。
@@ -86,7 +89,7 @@ def violation(topic, rule, note=""):
 
 
 # ------------------------------------------------------------------ 六项检查
-def check_punctuation(sheet_root):
+def check_punctuation(sheet_root, sheet):
     hits = []
     for topic, depth in walk(sheet_root):
         title = str(topic.get("title") or "")
@@ -96,7 +99,7 @@ def check_punctuation(sheet_root):
     return hits
 
 
-def check_tiered_length(sheet_root):
+def check_tiered_length(sheet_root, sheet):
     hits = []
     for topic, depth in walk(sheet_root):
         title = str(topic.get("title") or "")
@@ -113,14 +116,14 @@ def check_tiered_length(sheet_root):
     return hits
 
 
-def check_first_level_budget(sheet_root):
+def check_first_level_budget(sheet_root, sheet):
     kids = attached(sheet_root)
     if len(kids) > FIRST_LEVEL_BUDGET:
         return [violation(sheet_root, "first-level-budget", f"一级分支 {len(kids)} 支，超 {FIRST_LEVEL_BUDGET}")]
     return []
 
 
-def check_fanout(sheet_root):
+def check_fanout(sheet_root, sheet):
     hits = []
     for topic, depth in walk(sheet_root):
         kids = attached(topic)
@@ -148,7 +151,7 @@ def note_lines(topic):
     return out
 
 
-def check_note_invariants(sheet_root):
+def check_note_invariants(sheet_root, sheet):
     """四不变量：行形态 / 顶格词名在标题 / 一词一次 / 词条依赖链闭且无环。"""
     hits = []
     heads = {}
@@ -212,7 +215,7 @@ def check_note_invariants(sheet_root):
     return hits
 
 
-def check_right_number(sheet_root):
+def check_right_number(sheet_root, sheet):
     kids = attached(sheet_root)
     expected = len(kids)
     value = None
@@ -229,6 +232,42 @@ def check_right_number(sheet_root):
     return []
 
 
+FOLD_STATE_KEY = "branch"
+FOLD_STATE_OK = (None, "", "folded")
+# 桌面端根本不读的折叠键写法（09-04 实锤：自造 "folded": true → 打开无折叠，整版返工）
+FOLD_KEYS_WRONG = ("folded", "collapsed", "isCollapsed")
+MARK_KEYS = ("labels", "markers")
+
+
+def check_folding_key(sheet_root, sheet):
+    """折叠只认 topic 上的 `"branch": "folded"`。别的写法一律点名，理由是它们不是
+    「折叠得不对」而是「根本不折叠」——打开图才发现，成本最高的失败形态。"""
+    hits = []
+    for topic, _depth in walk(sheet_root):
+        for key in FOLD_KEYS_WRONG:
+            if topic.get(key):
+                hits.append(violation(topic, "folding-key", f"无效折叠键 {key}"))
+        if topic.get(FOLD_STATE_KEY) not in FOLD_STATE_OK:
+            hits.append(violation(topic, "folding-key",
+                                  f"{FOLD_STATE_KEY} 值非 folded"))
+    return hits
+
+
+def check_visual_marks(sheet_root, sheet):
+    """标准=零视觉标记：节点不带 labels / markers，表内不挂关系线（09-04 试验 7 条
+    联系线后被否，「看着很乱」）。notes 不在此列——定义笔记化后 notes 是释义载体。"""
+    hits = []
+    for topic, _depth in walk(sheet_root):
+        for key in MARK_KEYS:
+            if topic.get(key):
+                hits.append(violation(topic, "visual-marks", f"节点带 {key}"))
+    rels = sheet.get("relationships") if isinstance(sheet, dict) else None
+    if rels:
+        hits.append({"node": f"sheet:{sheet.get('id', '?')}", "rule": "visual-marks",
+                     "detail": f"表级关系线 {len(rels)} 条", "excerpt": ""})
+    return hits
+
+
 CHECKS = [
     ("banned-punctuation", check_punctuation),
     ("tiered-length", check_tiered_length),
@@ -236,15 +275,17 @@ CHECKS = [
     ("fanout", check_fanout),
     ("note-invariants", check_note_invariants),
     ("right-number", check_right_number),
+    ("folding-key", check_folding_key),
+    ("visual-marks", check_visual_marks),
 ]
 
 
-def validate_sheet(sheet_root, exclude=()):
+def validate_sheet(sheet_root, sheet, exclude=()):
     hits = []
     for name, fn in CHECKS:
         if name in exclude:
             continue
-        hits += fn(sheet_root)
+        hits += fn(sheet_root, sheet)
     return hits
 
 
@@ -256,7 +297,7 @@ def validate_map(sheets, exclude=()):
             hits.append({"node": f"sheet:{sheet.get('id', '?')}", "rule": "sheet-missing-root",
                          "detail": "表里没有 rootTopic", "excerpt": ""})
             continue
-        hits += validate_sheet(root, exclude)
+        hits += validate_sheet(root, sheet, exclude)
     return hits
 
 
@@ -297,6 +338,14 @@ GOOD = lambda: node("示例导图", [
 ], extra=ext(2))
 
 
+# 阴性夹具：正确折叠写法（"branch": "folded"）必须全绿——否则新检成了噪音源
+GOOD_FOLDED = lambda: node("示例导图", [
+    node("词条闸门", [node("释义全附"), node("使用点挂上")],
+         notes=GOOD_NOTE, extra={"branch": "folded"}),
+    node("验收块", [node("先跑校验器"), node("红点不许盖")]),
+], extra=ext(2))
+
+
 def one_child(child, right=1):
     return node("根题", [child], extra=ext(right))
 
@@ -326,16 +375,37 @@ FIXTURES = [
     ("right-number 不符", lambda: node("根题", [node("分支一"), node("分支二")],
                                    extra=ext(1)), "right-number"),
     ("缺 right-number", lambda: node("根题", [node("分支一")]), "right-number"),
+    ("错误折叠键 folded", lambda: one_child(node("折叠块", [node("孩子一")],
+                                          extra={"folded": True})), "folding-key"),
+    ("无效折叠键 collapsed", lambda: one_child(node("折叠块", [node("孩子一")],
+                                            extra={"collapsed": True})), "folding-key"),
+    ("branch 值非 folded", lambda: one_child(node("折叠块", [node("孩子一")],
+                                          extra={"branch": "collapse"})), "folding-key"),
+    ("节点带 labels", lambda: one_child(node("标记块", [node("孩子一")],
+                                      extra={"labels": ["重点"]})), "visual-marks"),
+    ("节点带 markers", lambda: one_child(node("标记块", [node("孩子一")],
+                                       extra={"markers": [{"markerId": "priority-1"}]})),
+     "visual-marks"),
+]
+
+# 表级夹具：关系线挂在 sheet 上而不是节点上，因此单独一组（造法给出并入 sheet 的字段）
+SHEET_FIXTURES = [
+    ("表级关系线", lambda: {"relationships": [{"id": "rel-1", "class": "relationship",
+                                        "end1Id": "t-1", "end2Id": "t-2", "title": "影响"}]},
+     "visual-marks"),
 ]
 
 
-def sheets_of(root):
-    return [{"id": "s1", "class": "map", "title": "sheet1", "rootTopic": root}]
+def sheets_of(root, sheet_extra=None):
+    sheet = {"id": "s1", "class": "map", "title": "sheet1", "rootTopic": root}
+    if sheet_extra:
+        sheet.update(sheet_extra)
+    return [sheet]
 
 
-def write_xmind(path: Path, root):
+def write_xmind(path: Path, root, sheet_extra=None):
     """按新版 Xmind 的最小包结构打包：content.json 是真数据，content.xml 只是占位警告页。"""
-    payload = json.dumps(sheets_of(root), ensure_ascii=False).encode("utf-8")
+    payload = json.dumps(sheets_of(root, sheet_extra), ensure_ascii=False).encode("utf-8")
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("content.json", payload)
         zf.writestr("metadata.json", json.dumps({"creator": {"name": "validate_xmind self-test"}}))
@@ -346,6 +416,11 @@ def write_xmind(path: Path, root):
 def fixture_map():
     """用例名 → (造法, 期望规则)，供 --emit-fixture 与自测共用同一份定义。"""
     return {label: (make, rule) for label, make, rule in FIXTURES}
+
+
+def sheet_fixture_map():
+    """表级夹具：用例名 → (sheet 附加字段造法, 期望规则)，树用合规夹具。"""
+    return {label: (make, rule) for label, make, rule in SHEET_FIXTURES}
 
 
 def self_test():
@@ -361,6 +436,8 @@ def self_test():
 
     check("合规夹具全绿", validate_map(sheets_of(GOOD())) == [],
           f"实际 {len(validate_map(sheets_of(GOOD())))} 项")
+    check("合规夹具/正确折叠键不误报", validate_map(sheets_of(GOOD_FOLDED())) == [],
+          f"实际 {[h['rule'] for h in validate_map(sheets_of(GOOD_FOLDED()))]}")
 
     for label, make, rule in FIXTURES:
         hits = validate_map(sheets_of(make()))
@@ -369,6 +446,15 @@ def self_test():
         check(f"正例/{label}", bool(fired), f"{len(fired)} 项命中")
         check(f"定向/{label}", not others, f"顺带命中 {others}" if others else "")
         check(f"反向接线/{label}", validate_map(sheets_of(make()), exclude={rule}) == [])
+
+    for label, make, rule in SHEET_FIXTURES:
+        sheets = sheets_of(GOOD(), make())
+        hits = validate_map(sheets)
+        fired = [h for h in hits if h["rule"] == rule]
+        others = sorted({h["rule"] for h in hits if h["rule"] != rule})
+        check(f"正例/{label}", bool(fired), f"{len(fired)} 项命中")
+        check(f"定向/{label}", not others, f"顺带命中 {others}" if others else "")
+        check(f"反向接线/{label}", validate_map(sheets, exclude={rule}) == [])
 
     global CHECKS
     saved = CHECKS
@@ -387,6 +473,14 @@ def self_test():
         hits, code = validate_file(good_file)
         check("文件入口/合规图 exit 0", code == 0 and not hits)
         bad_file = write_xmind(Path(td) / "bad.xmind", fixture_map()["扇出超上限"][0]())
+        fold_file = write_xmind(Path(td) / "fold.xmind", fixture_map()["错误折叠键 folded"][0]())
+        hits, code = validate_file(fold_file)
+        check("文件入口/无效折叠键 exit 1 且点名规则",
+              code == 1 and any(h["rule"] == "folding-key" for h in hits))
+        mark_file = write_xmind(Path(td) / "mark.xmind", GOOD(), sheet_fixture_map()["表级关系线"][0]())
+        hits, code = validate_file(mark_file)
+        check("文件入口/表级关系线 exit 1 且点名规则",
+              code == 1 and any(h["rule"] == "visual-marks" for h in hits))
         hits, code = validate_file(bad_file)
         check("文件入口/违例图 exit 1 且点名规则",
               code == 1 and any(h["rule"] == "fanout" for h in hits))
@@ -406,7 +500,7 @@ def main() -> int:
     ap.add_argument("--json", action="store_true", help="输出 JSON")
     ap.add_argument("--quiet", action="store_true", help="只报计数")
     ap.add_argument("--only", metavar="RULE", help="只跑指定规则名")
-    ap.add_argument("--self-test", action="store_true", help="合成夹具自证六检")
+    ap.add_argument("--self-test", action="store_true", help="合成夹具自证八检")
     ap.add_argument("--list-fixtures", action="store_true", help="列出内置夹具名")
     ap.add_argument("--emit-fixture", metavar="NAME", help="把指定夹具打成 .xmind 供查看")
     ap.add_argument("--out", default=None, help="--emit-fixture 的输出路径")
@@ -415,20 +509,26 @@ def main() -> int:
     if args.self_test:
         return self_test()
     if args.list_fixtures:
-        print(*(["good"] + [label for label, _m, _r in FIXTURES]), sep=chr(10))
+        print(*(["good", "good-folded"] + [label for label, _m, _r in FIXTURES]
+                 + [label for label, _m, _r in SHEET_FIXTURES]), sep=chr(10))
         return 0
     if args.emit_fixture:
         import tempfile
         name = args.emit_fixture
+        extra = None
         if name == "good":
             root = GOOD()
+        elif name == "good-folded":
+            root = GOOD_FOLDED()
         elif name in fixture_map():
             root = fixture_map()[name][0]()
+        elif name in sheet_fixture_map():
+            root, extra = GOOD(), sheet_fixture_map()[name][0]()
         else:
             print(f"没有这个夹具：{name}（用 --list-fixtures 看清单）", file=sys.stderr)
             return 2
         out = Path(args.out) if args.out else Path(tempfile.gettempdir()) / f"{name}.xmind"
-        write_xmind(out, root)
+        write_xmind(out, root, extra)
         print(f"已写出夹具：{out}")
         hits, code = validate_file(out)
         for h in hits:
@@ -445,7 +545,7 @@ def main() -> int:
         print(json.dumps({"path": args.path, "violations": hits,
                           "count": len(hits)}, ensure_ascii=False, indent=2))
     elif not hits:
-        print(f"通过：{args.path} 六项内容标准零违例")
+        print(f"通过：{args.path} 八项内容标准零违例")
     else:
         if not args.quiet:
             print(f"未通过：{args.path} 共 {len(hits)} 项违例")

@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publication-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Repository mirror vs local skill masters. CI has no local masters, so this
+      # must report "skipped" and exit 0; a non-zero exit here means the gate lost
+      # its portability, not that content drifted.
+      - name: Sync gate
+        run: python tools/sync_check.py
+
+      # Markdown link + structure review, local-machine trace review, credential
+      # shape review, private-document review, SKILL.md frontmatter review.
+      - name: Publication gate
+        run: python tools/preflight.py
+
+      # A green gate nobody injected a fault into is not a green gate: prove each
+      # category still fires.
+      - name: Gate self-test
+        run: python tools/preflight.py --self-test

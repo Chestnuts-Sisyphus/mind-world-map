@@ -1,0 +1,43 @@
+name: Bug report
+description: A gate, tool or documented behaviour does not do what the standard says
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Report problems with the capability (standards, gates, tools, knowledge
+        documents). Problems with one specific produced map belong to the project
+        that commissioned that map.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Actual behaviour, and the exact command you ran.
+      placeholder: >
+        python tools/preflight.py exited 0 even though ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What the standard requires
+      description: Quote the section of SKILL.md or the document that defines it.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: >
+        A minimal case that shows the gap. Paste file and line numbers rather than
+        the content when the issue is a disclosure.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: The tag or commit you tested (see the Releases page).
+    validations:
+      required: true

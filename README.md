@@ -1,6 +1,9 @@
 # 🧠 Mindmap Engineering
 
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![release](https://img.shields.io/github/v/release/Chestnuts-Sisyphus/mind-world-map.svg)](https://github.com/Chestnuts-Sisyphus/mind-world-map/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/Chestnuts-Sisyphus/mind-world-map/ci.yml.svg?label=CI)](https://github.com/Chestnuts-Sisyphus/mind-world-map/actions/workflows/ci.yml)
+[![skill](https://img.shields.io/badge/skill-mindmap--engineering-informational.svg)](SKILL.md)
 
 **An agent skill for engineering mind maps — battle-tested standards, machine QA gates, and a data/build pipeline for producing XMind files a cold reader can understand completely.**
 
@@ -20,7 +23,8 @@ Every rule in here is a scar: distilled from six real rounds of rework (2026-08 
 | [references/pitfalls.md](references/pitfalls.md) | Full pitfall archive in four classes: file-format traps, content-organization traps, pipeline traps, collaboration rules. |
 | [references/update-protocol.md](references/update-protocol.md) | The six-step protocol for updating an existing map (maps are build artifacts — hand-editing XMind is forbidden), plus three anti-regression safeguards. |
 | [references/memory/](references/memory/) | 6 deep-dive knowledge documents: visual style baseline, CLI generation flow, narrative calibration, render-flicker troubleshooting, and more. |
-| [tools/sync_check.py](tools/sync_check.py) | Read-only three-way sync gate: SHA256-compares every public file between this repo mirror and your local skill master copies; exits non-zero and lists divergent files. Run before every commit. |
+| [tools/sync_check.py](tools/sync_check.py) | Read-only sync gate: SHA256-compares the repo mirror against your local skill master copies (publish rules applied); exits non-zero and names divergent files. Missing master directories are skipped, so it is safe to run anywhere. |
+| [tools/preflight.py](tools/preflight.py) | Read-only publication gate: local-machine traces (drive-letter paths, 8.3 short names, user-directory segments, local account name), credential shapes, dead relative links and dead document pointers, private files named in public docs, EN/ZH heading-structure drift, identity-term regression. Reports `file:line rule` only — never the matched text. `--self-test` proves every category actually fires. |
 
 ## 🔑 Core ideas in 60 seconds
 
@@ -37,20 +41,20 @@ Copy this repository into your agent's skills directory, e.g.:
 
 ```bash
 git clone https://github.com/Chestnuts-Sisyphus/mind-world-map.git
-# Claude Code / Qoder-style skill discovery (repo name ≠ skill name on purpose;
+# Claude Code / Qoder-style skill discovery (repo name != skill name on purpose;
 # the trigger name stays `mindmap-engineering`):
 cp -r mind-world-map ~/.claude/skills/mindmap-engineering
 ```
 
 Then trigger it with `/mindmap-engineering` (or let the agent load it automatically on any mind-map task).
 
-> **Scope note.** This repo is the *capability* (standards, gates, protocols, knowledge base). Concrete maps produced with it belong to their respective subject projects, not here. The reference pipeline scripts (builders, restructurers, validators) were developed against a personal local workspace and are not part of this public package; the methodology docs describe their required behavior in full detail.
+> **Scope note.** This repo is the *capability* (standards, gates, protocols, knowledge base). Concrete maps produced with it belong to their respective subject projects, not here. The reference pipeline and map-validation scripts were developed against a personal local workspace and are **not** part of this public package — [SKILL.md](SKILL.md) specifies what each component must do, so you can implement it in your own toolchain; `xmind validate` plus the two-generation QA checklist in SKILL.md is the executable floor.
 
 ## 🧪 How to verify a map
 
 - `xmind validate` → 0 errors is the floor, not the bar.
 - Headless render check: open a **copy** of the file (never the original) with GPU compositing disabled, capture the window via PrintWindow, and **poll on non-white content ratio — >2% counts as rendered**. Fixed sleep durations produce all-white false negatives (cold start measured at ~55 s of blank on the reference machine). Windows OCR requires a backslash-absolute image path.
-- After any `git checkout`, re-run `python tools/sync_check.py` — line endings are pinned to LF by `.gitattributes`, and the gate catches any residual drift.
+- After any `git checkout`, re-run both gates — see [How to update](#-how-to-update).
 
 ## 🗂️ Repository layout
 
@@ -61,21 +65,45 @@ mind-world-map/
 │   ├── pitfalls.md               # full pitfall archive (4 classes)
 │   ├── update-protocol.md        # six-step update protocol + anti-regression safeguards
 │   └── memory/                   # 6 deep-dive knowledge docs (style baseline, CLI flow, ...)
+├── tools/
+│   ├── sync_check.py             # master <-> mirror consistency gate (read-only)
+│   └── preflight.py              # publication gate: traces / secrets / dead links / privacy (read-only)
+├── .github/
+│   ├── workflows/ci.yml          # runs both gates + link & structure checks
+│   ├── ISSUE_TEMPLATE/           # bug / feature templates
+│   └── pull_request_template.md  # contributor checklist (gates included)
 ├── README.md / README.zh-CN.md
-├── LICENSE (MIT)
+├── CONTRIBUTING.md / SECURITY.md / CODE_OF_CONDUCT.md
 ├── CHANGELOG.md
-└── tools/sync_check.py           # three-way sync check (repo mirror vs local skill copies)
+├── LICENSE (MIT)
+├── .gitattributes                # pins eol=lf for text (see update notes on line endings)
+└── .gitignore                    # keeps project-local knowledge docs out of the package
 ```
 
 ## 🔄 How to update
 
-The **local skill directories are the editing master** (正本); this repository is the **public mirror** (发布镜像). Workflow:
+The **local skill directory is the editing master** (正本); this repository is the **public mirror**. Two facts shape the workflow:
+
+- **Publication rules are a deterministic transform.** Local masters keep their original wording; the published face anonymises the author's identity and generalises machine-local paths, and the table lives in `tools/preflight.py`. So the mirror is *not* a byte copy of the master — it is the transform of it.
+- **Line endings are pinned to LF** by `.gitattributes`; on a Windows host with `core.autocrlf=true` an editor can silently write CRLF and diverge the mirror.
+
+Steps:
 
 1. Edit `SKILL.md` / `references/**` in your local skill directory (e.g. `~/.claude/skills/mindmap-engineering/`).
-2. Copy the changed files into this repository (same relative paths).
-3. Run `python tools/sync_check.py` — it compares SHA256 of every shared file between the repo and the local skill copies, writes nothing to disk, exits non-zero and lists divergent files on any mismatch. Only commit when it exits 0.
+2. Copy the changed files to the repo at the same relative paths and apply the publication rules from `tools/preflight.py`.
+3. Run the two gates — both must exit 0 before you commit:
 
-> Project-specific knowledge documents listed in `.gitignore` (and `QODER-MIGRATION.md`) stay local by design; the sync check only compares the public file set.
+```bash
+python tools/sync_check.py      # names every divergent file; pass master dirs as args, or set MINDMAP_SKILL_MASTERS
+python tools/preflight.py       # names file:line for every publication-rule violation
+python tools/preflight.py --self-test   # proves each check still fires
+```
+
+> Project-specific knowledge documents listed in `.gitignore` stay local by design (this repo's own migration log among them); the sync check only compares the public file set, and preflight fails if a private document ever lands inside the package.
+
+## 🤝 Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) — the short version: edit the standards in `SKILL.md` only (it is the single source of truth), never soften a rule inside a deliverable, and run both gates before opening a PR. Report suspected security issues per [SECURITY.md](SECURITY.md); participants agree to [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ## 📄 License
 

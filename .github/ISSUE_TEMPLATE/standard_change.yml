@@ -1,0 +1,36 @@
+name: Standard change
+description: Propose changing a rule, budget or gate in SKILL.md
+labels: ["standards"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Standards live only in SKILL.md. A proposal to widen a budget must show that
+        the current value is wrong, not that one artifact is inconvenient - both
+        past widenings were reverted.
+  - type: textarea
+    id: current
+    attributes:
+      label: Current rule
+      description: Quote it and name the section.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What it gets wrong
+      description: Real cases where the rule produced a worse artifact or let a defect through.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed rule
+      description: Exact replacement wording, and which gate enforces it.
+    validations:
+      required: true
+  - type: textarea
+    id: regression
+    attributes:
+      label: How we will know it regressed
+      description: The injected violation that should make a gate fail.

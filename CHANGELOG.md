@@ -7,6 +7,12 @@ generated from the matching section below, so a version without a section here c
 
 ## [Unreleased]
 
+_Nothing yet. Release flow reopens this section after each tag; see CONTRIBUTING._
+
+## v1.0.4 — 2026-09-19
+
+Second hardening round, driven by artifacts rather than by the previous round's self-report.
+
 - **Added (`tools/publish.py`)**: the master-to-mirror publication transform finally has an
   executable, idempotent entry point in the package; the step used to be performed by a
   throwaway script that was never published. `tools/**` is distributed back to every skill
@@ -27,6 +33,9 @@ generated from the matching section below, so a version without a section here c
   A local proxy port in the render-flicker notes was machine detail with no documentation
   value. `xmind validate` is now described by what it actually measures (structure, five
   classes, exit-code semantics) rather than by hope.
+- **Process note**: branch protection landed the same round as this release, so the release
+  commit went to `main` directly by the maintainer (`enforce_admins` is off). CONTRIBUTING
+  asks that such bypasses be booked here rather than left implicit.
 
 ## v1.0.3 — 2026-09-19
 

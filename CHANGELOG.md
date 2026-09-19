@@ -9,6 +9,19 @@ generated from the matching section below, so a version without a section here c
 
 _None yet; the release flow reopens this section after each tag (see CONTRIBUTING)._
 
+## v1.0.7 — 2026-09-19
+
+Last gate-correctness patch of this round, found by running the documented commands from the
+install-point layout rather than only from the repo.
+
+- **Fixed (`tools/preflight.py`)**: `--self-test` exited 1 when run from an installed skill
+  directory. The private-doc case asserted through `check_private_present`, which by design
+  returns nothing outside a repo layout (masters legitimately keep private docs), so the
+  injected violation could never fire there -- the gate's own self-proof was layout-dependent
+  while the "all three gates green from either layout" claim was not. The reporting step is now
+  a layout-independent function the self-test asserts against; the real scan still skips the
+  install layout. Measured: 22 PASS / 0 FAIL and exit 0 in the repo and in all three masters.
+
 ## v1.0.6 — 2026-09-19
 
 Gate-integrity patches after v1.0.5; released so `main` and the newest tag stay equal.

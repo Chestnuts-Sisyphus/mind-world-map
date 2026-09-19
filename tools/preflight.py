@@ -164,13 +164,19 @@ def tracked_text_files():
     return out
 
 
+def private_present_hits(present):
+    """私有件相对路径集合 → 位置清单。刻意做成不依赖目录布局的纯函数，
+    好让 --self-test 在仓库与安装点两种布局下都能自证这条检测会响。"""
+    return [f"{rel}:1 private-doc-in-package" for rel in sorted(present)]
+
+
 def check_private_present(existing=None):
     """被 .gitignore 排除的私有文档出现在仓库目录里 = 误拷入包（虽不被跟踪，仍是泄露隐患）。
     安装点视角（无 .gitignore）下私有件留在正本里是设计口径，不做此项检查。"""
     if not is_repo_layout():
         return []
     present = {rel for rel in gitignored_doc_paths() if (REPO / rel).is_file()} if existing is None else set(existing)
-    return [f"{rel}:1 private-doc-in-package" for rel in sorted(present)]
+    return private_present_hits(present)
 
 
 def iter_public_md():
@@ -601,9 +607,9 @@ def self_test():
     print(("PASS" if en_lv != zh_lv else "FAIL") + " bilingual-structure: 人造层级差被识别")
     ok = ok and en_lv != zh_lv
 
-    # 私有件误拷入包：注入一个「仓库里存在」的路径，不碰磁盘
+    # 私有件误拷入包：注入一个「仓库里存在」的路径，不碰磁盘。走纯函数故两种布局都能自证。
     sample_private = next(iter(gitignored_doc_paths()), "x.md")
-    hits = check_private_present([sample_private])
+    hits = private_present_hits([sample_private])
     print(("PASS" if hits else "FAIL") + " private-in-package: 人造误拷被拦（位置已点名）")
     ok = ok and bool(hits)
 

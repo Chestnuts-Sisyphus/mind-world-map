@@ -19,7 +19,8 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from preflight import apply_publish_rules  # noqa: E402
+from preflight import (PUBLIC_SURFACE_REL, apply_publish_rules,  # noqa: E402
+                       classify_text_rels, gitignored_doc_paths)
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -48,38 +49,11 @@ def master_dirs(argv):
     return default_masters()
 
 
-LOCAL_PRIVATE_RELS = {
-    "QODER-MIGRATION.md",
-    "references/memory/cm-closure-mindmap-pipeline.md",
-    "references/memory/cm-zhongshen-mindmap-delivered.md",
-    "references/memory/connectome-cm-core-definition.md",
-    "references/memory/connectome-mindmap-project.md",
-}
-
-
-def private_rels(repo_root: Path = REPO) -> set:
-    """.gitignore 中显式列出的 *.md 路径 = 有意不进公开包的私有文档。
-    安装点目录没有 .gitignore，退回用 LOCAL_PRIVATE_RELS 同口径识别——与 preflight
-    的 gitignored_doc_paths 保持一致，否则私有件会在正本互比时被当成漏发布的公开件。"""
-    gitignore = repo_root / ".gitignore"
-    if not gitignore.is_file():
-        return set(LOCAL_PRIVATE_RELS)
-    return {
-        line.strip()
-        for line in gitignore.read_text(encoding="utf-8").splitlines()
-        if line.strip().endswith(".md") and not line.strip().startswith("#")
-    }
-
-
-def public_rels(root: Path) -> set:
-    """公开文件集 = SKILL.md + references/ 下全部 md（与仓库侧同口径）。"""
-    rels = set()
-    if (root / "SKILL.md").is_file():
-        rels.add("SKILL.md")
-    refs = root / "references"
-    if refs.is_dir():
-        rels.update(p.relative_to(root).as_posix() for p in refs.rglob("*.md"))
-    return rels
+def public_rels(root: Path, private=()):
+    """公开文件集 = 登记表登记的发布件（与 publish / preflight 同一张表、同一个判定）。
+    本函数的私有件清单同样取自 preflight，两处不再各存一份常量。"""
+    published, _unregistered = classify_text_rels(root, private=private)
+    return set(published)
 
 
 def raw_bytes(path: Path) -> bytes:
@@ -125,6 +99,12 @@ def private_master_problems(private_rels, masters, reader=None):
     return problems, checked
 
 
+def private_rels(repo_root: Path = REPO) -> set:
+    """有意留在本地的私有文档清单：唯一出处在 preflight（读 .gitignore，安装点退回常量表）。
+    本文件不再另存一份副本，否则两处口径迟早漂移——那正是本轮要收的账。"""
+    return set(gitignored_doc_paths(repo_root))
+
+
 def compare(repo_root: Path, masters):
     """比对核心：返回 (问题清单, 仓库公开文件集, 存在的正本, 跳过的正本)。
 
@@ -136,9 +116,9 @@ def compare(repo_root: Path, masters):
       镜像里残留正本原文时点名得更具体。
     * 安装点布局（无 .gitignore）＝本地 skill 正本目录：这里两侧存的都是原文，
       要求发布面只会假报，故改为各正本之间逐字互比（运行位置自身算一处）。"""
-    private = private_rels(repo_root)
+    private = gitignored_doc_paths(repo_root)
     mirror = (repo_root / ".gitignore").is_file()
-    repo_rels = public_rels(repo_root) - private
+    repo_rels, repo_unregistered = classify_text_rels(repo_root, private=private)
     present, skipped = [], []
     for d in masters:
         (present if d.is_dir() else skipped).append(d)
@@ -146,10 +126,13 @@ def compare(repo_root: Path, masters):
     if not mirror:
         sides = [repo_root] + [d for d in present if d.resolve() != repo_root.resolve()]
         present = sides
-        universe = set()
+        universe, unregistered = set(), set()
         for d in sides:
-            universe |= public_rels(d)
-        problems = []
+            published, unreg = classify_text_rels(d, private=set())
+            universe |= set(published)
+            unregistered |= set(unreg)
+        problems = [f"未登记公开件类型：{rel}（登记表 {PUBLIC_SURFACE_REL} 未列该类型）"
+                    for rel in sorted(unregistered)]
         for rel in sorted(universe):
             texts = {}
             for d in sides:
@@ -163,15 +146,19 @@ def compare(repo_root: Path, masters):
                 problems.append(f"正本之间不一致：{rel}（{'、'.join(texts)}）")
         return problems, universe, present, skipped
 
-    problems = []
+    problems = [f"未登记公开件类型（仓库侧）：{rel}（登记表 {PUBLIC_SURFACE_REL} 未列该类型）"
+                 for rel in repo_unregistered]
     for local in present:
-        local_rels = public_rels(local) - private
-        for rel in sorted(repo_rels | local_rels):
+        local_rels, local_unregistered = classify_text_rels(local, private=private)
+        problems += [f"未登记公开件类型：{rel}（{local}，登记表 {PUBLIC_SURFACE_REL} 未列该类型）"
+                     for rel in local_unregistered]
+        for rel in sorted(set(repo_rels) | set(local_rels)):
             rp, lp = repo_root / rel, local / rel
             if not rp.is_file():
                 problems.append(f"{local} 有而仓库缺：{rel}")
             elif not lp.is_file():
-                problems.append(f"仓库有而 {local} 缺：{rel}")
+                problems.append(f"仓库有而 {local} 缺：{rel}"
+                                "（正本已删该文档 -> 跑 python tools/publish.py --prune 清镜像残留）")
             elif digest(raw_bytes(rp)) != digest(published_bytes(lp)):
                 if digest(raw_bytes(rp)) == digest(raw_bytes(lp)):
                     problems.append(f"镜像未套发布面变换：{rel}（仓库内容与 {local} 原文逐字节相同）")
@@ -236,7 +223,16 @@ def self_test() -> int:
         os.remove(master / "references" / "memory" / "only-master.md")
         _put(repo / "references" / "memory" / "only-repo.md", published)
         problems, _r, _p, _s = compare(repo, [master])
-        check("file present only in repo named", any("only-repo.md" in p for p in problems))
+        check("file present only in repo names the prune switch",
+              any("only-repo.md" in p and "--prune" in p for p in problems))
+        _put(master / "references" / "x.tsv", "合成未登记件\n")
+        problems, _r, _p, _s = compare(repo, [master])
+        check("unregistered public type named",
+              any("未登记公开件类型" in p and "references/x.tsv" in p for p in problems))
+        os.remove(master / "references" / "x.tsv")
+        os.remove(repo / "references" / "memory" / "only-repo.md")
+        problems, _r, _p, _s = compare(repo, [master])
+        check("residue cleared -> sync gate green", not problems)
 
         problems, _r, present, skipped = compare(repo, [root / "no-such-master"])
         check("no masters -> zero problems (portable)", not present and not problems and skipped)

@@ -16,6 +16,7 @@
 退出码：0=无问题，1=有问题（或 self-test 有类不响）。
 """
 import argparse
+import fnmatch
 import getpass
 import re
 import subprocess
@@ -115,6 +116,105 @@ def apply_publish_rules(text: str) -> str:
     for pat, repl in REGEX_RULES:
         text = pat.sub(repl, text)
     return text
+
+
+# ---------------------------------------------------------------- 公开件登记表
+# 「什么算公开件」只在一处登记：tools/public-surface.tsv。publish 按它决定哪些正本文本
+# 落镜像、sync_check 按它决定比什么、preflight 按它决定扫什么并点名未登记类型。
+# 口径硬约束：登记表读不到 = 报错（绝不能退化成「本包没有公开件」而静默清空镜像）；
+# 出现未登记类型 = 点名（绝不静默忽略）。
+PUBLIC_SURFACE_REL = "tools/public-surface.tsv"
+ACTION_PUBLISH = "publish"
+ACTION_DISTRIBUTE = "distribute"
+TEXT_COMMUNITY = ("SKILL.md", "references")
+_surface_cache = None
+
+
+def path_match(rel: str, pattern: str) -> bool:
+    """登记表的 glob 语义：按路径分段匹配，`*` 不跨目录、`**` 匹配零或多段。
+    不用 fnmatch：它的 `*` 会跨目录，`references/*.md` 会把 memory/ 下的文档一起吃掉。"""
+    segs, pat = rel.split("/"), pattern.split("/")
+
+    def walk(i, j):
+        while j < len(pat):
+            if pat[j] == "**":
+                return any(walk(k, j + 1) for k in range(i, len(segs) + 1))
+            if i >= len(segs) or not fnmatch.fnmatch(segs[i], pat[j]):
+                return False
+            i, j = i + 1, j + 1
+        return i == len(segs)
+
+    return walk(0, 0)
+
+
+def load_public_surface(path=None):
+    """解析登记表，返回 [(kind, pattern, action, reason)]。
+    缺失 / 无有效行一律抛错：宁可不发布，也不能把「读不到」当成「没有公开件」。"""
+    table = Path(__file__).resolve().parent / "public-surface.tsv" if path is None else Path(path)
+    if not table.is_file():
+        raise FileNotFoundError(f"公开件登记表缺失：{table}")
+    rows = []
+    for line in table.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = [c.strip() for c in line.split("\t")]
+        if len(parts) < 4 or not parts[1] or not parts[2]:
+            continue
+        rows.append(tuple(parts))
+    if not rows:
+        raise ValueError(f"公开件登记表无任何有效行：{table}")
+    return rows
+
+
+def public_surface():
+    """进程内缓存的登记表；取不到时由调用方按「报错」处理，不返回空表。"""
+    global _surface_cache
+    if _surface_cache is None:
+        _surface_cache = load_public_surface()
+    return _surface_cache
+
+
+def surface_action(rel: str, rows=None) -> str:
+    for _kind, pattern, action, _reason in (public_surface() if rows is None else rows):
+        if path_match(rel, pattern):
+            return action
+    return ""
+
+
+def text_community_rels(root: Path):
+    """正本文社区 = SKILL.md 与 references/ 下的全部文件（登记表只管这里）。"""
+    out = []
+    if (root / "SKILL.md").is_file():
+        out.append("SKILL.md")
+    refs = root / "references"
+    if refs.is_dir():
+        out += [p.relative_to(root).as_posix() for p in sorted(refs.rglob("*")) if p.is_file()]
+    return out
+
+
+def classify_text_rels(root: Path, rows=None, private=()):
+    """按登记表把正本文社区分成「该发布」与「未登记类型」两类（私有清单先剔除）。
+    纯函数：root 与 rows 都可注入，因此三方共用同一判定而结论不随运行布局变。"""
+    private = set(private)
+    published, unregistered = [], []
+    for rel in text_community_rels(root):
+        if rel in private:
+            continue
+        (published if surface_action(rel, rows) == ACTION_PUBLISH else unregistered).append(rel)
+    return sorted(published), sorted(unregistered)
+
+
+def check_public_surface(root: Path = REPO, rows=None, table=None):
+    """镜像侧同口径复核：登记表读不到就点名登记表；references/ 下出现未登记类型就点名该件。
+    table 可注入，因此「取不到登记表」这条通路在任何布局下都能被自测证明。"""
+    if rows is None:
+        try:
+            rows = load_public_surface(table) if table is not None else public_surface()
+        except (FileNotFoundError, ValueError):
+            return [f"{PUBLIC_SURFACE_REL}:1 public-surface-unreadable"]
+    _published, unregistered = classify_text_rels(root, rows, gitignored_doc_paths(root))
+    return [f"{rel}:1 unregistered-public-artifact" for rel in unregistered]
 
 
 # ---------------------------------------------------------------- 检测规则
@@ -1167,6 +1267,45 @@ def self_test():
     ok = ok and in_set and tiered and (md - leak == set(PRIVATE_NAME_CHECKS) | set(DOC_CHECKS))
     ok = ok and not suffix_only and "references/x.png" not in selected
 
+    # 公开件登记表（L4 新检）：三方共用同一判定，未登记类型必点名、读不到必报错
+    with tempfile.TemporaryDirectory() as td2:
+        tmp = Path(td2)
+        (tmp / "references" / "memory").mkdir(parents=True)
+        for rel in ("SKILL.md", "references/pitfalls.md", "references/memory/a.md",
+                    "references/x.tsv"):
+            (tmp / rel).write_text("x\n", encoding="utf-8", newline=chr(10))
+        rows = [("text", "SKILL.md", ACTION_PUBLISH, "r"),
+                ("text", "references/**/*.md", ACTION_PUBLISH, "r"),
+                ("tool", "tools/*.py", ACTION_DISTRIBUTE, "r")]
+        published, unregistered = classify_text_rels(tmp, rows, set())
+        pos = unregistered == ["references/x.tsv"]
+        neg = published == ["SKILL.md", "references/memory/a.md", "references/pitfalls.md"]
+        deep = path_match("references/memory/a.md", "references/**/*.md")
+        shallow = not path_match("references/x.tsv", "references/memory/*.md")
+        cross = not path_match("references/memory/a.md", "references/*.md")
+        unreadable = check_public_surface(tmp, table=tmp / "no-table.tsv")
+        try:
+            load_public_surface(tmp / "no-table.tsv")
+            raised = False
+        except FileNotFoundError:
+            raised = True
+        original_action = globals()["surface_action"]
+        try:
+            globals()["surface_action"] = lambda rel, rows=None: ACTION_PUBLISH
+            everything_published = classify_text_rels(tmp, rows, set())[1]
+        finally:
+            globals()["surface_action"] = original_action
+        print(("PASS" if pos else "FAIL") + " public-surface: 未登记类型被点名（references/x.tsv）")
+        print(("PASS" if neg and deep and shallow and cross else "FAIL")
+              + " negative/public-surface: 登记在案的文本件不误报，glob 不跨目录")
+        print(("PASS" if raised else "FAIL") + " public-surface: 登记表读不到=抛错而非「无公开件」")
+        print(("PASS" if bool(unreadable) and "public-surface-unreadable" in unreadable[0] else "FAIL")
+              + " public-surface: 当前布局取不到登记表时点名登记表")
+        print(("PASS" if not everything_published else "FAIL")
+              + " public-surface: 登记表判定被短路时未登记件即消失（反向接线证明）")
+        ok = (ok and pos and neg and deep and shallow and cross and raised
+              and bool(unreadable) and not everything_published)
+
     # 反向接线（本轮新形态）：把裸脚本名与「模块.成员」两条正则致盲，
     # 同一条人造违规必须变静默——否则新形态只是写在文件里，没接到线路上。
     samples = {"裸脚本名": "改结构先动 `cm_restructure.py` 再重建",
@@ -1220,6 +1359,7 @@ def main() -> int:
     findings += check_skill_frontmatter()
     findings += check_workflows_ascii()
     findings += check_readme_layout()
+    findings += check_public_surface()
     findings += check_changelog()
     findings += check_crlf()
     findings += check_tracked_binary()

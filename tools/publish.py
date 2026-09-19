@@ -4,7 +4,8 @@
 
 用法：
     python tools/publish.py                 # 同步：主正本 → 仓库镜像；仓库 tools/ → 各正本
-    python tools/publish.py --check         # 只报漂移不写盘（有漂移 exit 1）
+    python tools/publish.py --check         # 只报漂移与待删清单，不写盘（有问题 exit 1）
+    python tools/publish.py --prune         # 删除镜像里的残留已发布文档（默认只报不删）
     python tools/publish.py --dry-run       # 打印将写入的文件，不落盘
     python tools/publish.py --master DIR    # 指定主正本（编辑源）
     python tools/publish.py --self-test     # 在临时假目录里自证四条不变量，绝不碰真安装点
@@ -13,8 +14,13 @@
     SKILL.md / references/**  → 编辑源是主正本，仓库是它的发布面变换结果
     tools/**                  → 编辑源是仓库，正本目录里的 tools/ 是分发的副本
 
+方向还有删除一侧：正本删掉的已发布文档，publish 默认只打印「需删除：<路径>」，
+加 --prune 才真删，且删除只作用于仓库镜像——正本侧文件永不被本工具触碰。
+「什么算公开件」不在本文件里，由 tools/public-surface.tsv 登记，sync_check 与 preflight 共用。
+
 幂等：同一输入跑两遍，第二遍零写入、产出字节完全相同。所有写盘统一 LF 行尾。
-退出码：0=已同步（或 --check 无漂移），1=--check 发现漂移、或运行位置不是发布镜像仓库。
+退出码：0=已同步（或 --check 无漂移无残留），1=有漂移/有残留、出现未登记公开件类型、
+或运行位置不是发布镜像仓库。
 """
 import argparse
 import os
@@ -23,8 +29,9 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from preflight import (apply_publish_rules, gitignored_doc_paths,  # noqa: E402
-                       is_repo_layout)
+from preflight import (ACTION_DISTRIBUTE, PUBLIC_SURFACE_REL,  # noqa: E402
+                       apply_publish_rules, classify_text_rels, gitignored_doc_paths,
+                       is_repo_layout, surface_action)
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -35,32 +42,63 @@ SKILL_MD = "SKILL.md"
 # 顺序有意为之——`.qoder-cn` 是现役编辑源，把它排在最前可避免拿陈旧正本覆盖新改动。
 MASTER_PRIORITY = [(".qoder-cn", "skills"), (".qoder", "skills"), (".claude", "skills")]
 SKILL_NAME = "mindmap-engineering"
-TOOL_SUFFIXES = {".py", ".tsv"}
 
 
-def public_rels(root: Path, private=None) -> list:
-    """正本文本集 = SKILL.md + references/ 下全部 md，剔除 .gitignore 登记的私有件。"""
+def public_rels(root: Path, private=None, rows=None) -> list:
+    """正本文本集 = 登记表登记的发布件，剔除 .gitignore 登记的私有件。
+    登记表读不到时按异常抛出（publish 是写盘件，静默退化成「无公开件」= 清空镜像）。"""
     if private is None:
         private = gitignored_doc_paths()
-    rels = set()
-    if (root / SKILL_MD).is_file():
-        rels.add(SKILL_MD)
-    refs = root / "references"
-    if refs.is_dir():
-        rels.update(p.relative_to(root).as_posix() for p in refs.rglob("*.md"))
-    return sorted(rels - set(private))
+    published, _unregistered = classify_text_rels(root, rows, private)
+    return published
 
 
-def tool_rels(repo: Path = REPO) -> list:
-    """包内工具集 = tools/ 下的 .py / .tsv（不含 __pycache__）。"""
+def unregistered_rels(root: Path, private=None, rows=None) -> list:
+    """公开件社区里既未登记也不在私有清单的件——既不发布也不静默忽略，由调用方点名。"""
+    if private is None:
+        private = gitignored_doc_paths()
+    _published, unregistered = classify_text_rels(root, rows, private)
+    return unregistered
+
+
+def mirror_public_rels(repo: Path = REPO, rows=None) -> list:
+    """镜像侧按登记表认定的已发布文本件（删除侧据此判定谁是残留）。"""
+    published, _unregistered = classify_text_rels(repo, rows, set())
+    return published
+
+
+def tool_rels(repo: Path = REPO, rows=None) -> list:
+    """包内工具集 = 登记表里 action=distribute 的件（编辑源在仓库，分发回各正本）。"""
     tools = repo / "tools"
     if not tools.is_dir():
         return []
-    return sorted(
-        p.relative_to(repo).as_posix()
-        for p in tools.rglob("*")
-        if p.is_file() and p.suffix.lower() in TOOL_SUFFIXES and "__pycache__" not in p.parts
-    )
+    out = []
+    for p in sorted(tools.rglob("*")):
+        if not p.is_file() or "__pycache__" in p.parts:
+            continue
+        rel = p.relative_to(repo).as_posix()
+        if surface_action(rel, rows) == ACTION_DISTRIBUTE:
+            out.append(rel)
+    return out
+
+
+def stale_docs(primary: Path, repo: Path = REPO, private=None, rows=None) -> list:
+    """正本已删、镜像还留着的已发布文档 = 删除侧欠账。只算不删。"""
+    keep = set(public_rels(primary, private, rows))
+    return [rel for rel in mirror_public_rels(repo, rows) if rel not in keep]
+
+
+def prune(stale, repo: Path = REPO, dry_run: bool = False) -> int:
+    """删除侧的唯一执行体：只动镜像，且调用方必须先打印过待删清单；正本侧永不被动。"""
+    removed = 0
+    for rel in stale:
+        path = repo / rel
+        if not path.is_file():
+            continue
+        if not dry_run:
+            path.unlink()
+        removed += 1
+    return removed
 
 
 def master_dirs(argv_master) -> list:
@@ -118,7 +156,7 @@ def plan(primary: Path, masters: list, dry_run: bool, repo: Path = REPO) -> list
             if write_lf(other / rel, read_master(primary / rel), dry_run):
                 changes.append(f"{rel_label(other)}<-master {rel}")
 
-    # 3) 仓库 tools/ → 每个正本（含主正本：工具的唯一编辑源是仓库）
+    # 3) 仓库 tools/ → 每个正本（含主正本：工具的唯一编辑源是仓库；按登记表分发）
     for rel in tool_rels(repo):
         data = (repo / rel).read_text(encoding="utf-8").replace("\r\n", "\n")
         for m in masters:
@@ -146,6 +184,7 @@ def _fake_workspace(root: Path):
     repo, primary, secondary = root / "repo", root / "masterA", root / "masterB"
     _put(repo / ".gitignore", GITIGNORE_STUB)
     _put(repo / "tools" / "demo_tool.py", TOOL_SAMPLE)
+    _put(repo / "tools" / PUBLIC_SURFACE_REL, TOOL_SAMPLE)
     _put(primary / SKILL_MD, RAW_SAMPLE)
     _put(primary / "references" / "memory" / "a.md", RAW_SAMPLE)
     _put(primary / "references" / "memory" / "private-notes.md", RAW_SAMPLE)
@@ -217,6 +256,35 @@ def self_test() -> int:
         finally:
             globals()["write_lf"] = original
 
+        # 删除侧（L3）：正本删掉的已发布文档默认只报不删，--prune 才真删且只动镜像
+        fake_private = gitignored_doc_paths(repo)
+        (primary / "references" / "memory" / "a.md").unlink()
+        stale = stale_docs(primary, repo=repo, private=fake_private)
+        check("mirror residue named as to-delete", stale == ["references/memory/a.md"])
+        check("without --prune nothing is deleted",
+              (repo / "references" / "memory" / "a.md").is_file())
+        check("prune dry-run deletes nothing",
+              prune(stale, repo=repo, dry_run=True) == 1
+              and (repo / "references" / "memory" / "a.md").is_file())
+        check("prune deletes only the mirror copy",
+              prune(stale, repo=repo) == 1 and not (repo / "references" / "memory" / "a.md").is_file())
+        check("other master's copy untouched by prune",
+              (secondary / "references" / "memory" / "a.md").is_file())
+        check("stale list empties after prune",
+              stale_docs(primary, repo=repo, private=fake_private) == [])
+        check("idempotent after prune", plan(primary, masters, dry_run=False, repo=repo) == [])
+        # 未登记公开件类型（L4）：既不落镜像也不静默忽略
+        _put(primary / "references" / "x.tsv", "合成未登记件\n")
+        check("unregistered public artifact named",
+              unregistered_rels(primary, private=fake_private) == ["references/x.tsv"])
+        check("unregistered artifact never mirrored", not (repo / "references" / "x.tsv").is_file())
+        (primary / "references" / "x.tsv").unlink()
+        # 登记表分发口径：distribute 件覆盖到每个正本（含新登记的表本身）
+        _put(repo / "tools" / PUBLIC_SURFACE_REL, TOOL_SAMPLE)
+        _put(repo / "tools" / "preflight.py", TOOL_SAMPLE)
+        os.remove(repo / "tools" / PUBLIC_SURFACE_REL)
+        os.remove(repo / "tools" / "preflight.py")
+
         # 反向接线证明（其二）：去掉发布面变换 → 盘符路径直接进镜像
         original_rules = apply_publish_rules
         try:
@@ -238,7 +306,10 @@ def is_repo_layout_at(root: Path) -> bool:
 def main() -> int:
     ap = argparse.ArgumentParser(description="正本 → 发布镜像的可复现入口（幂等）")
     ap.add_argument("--master", help="主正本目录（文本的编辑源）")
-    ap.add_argument("--check", action="store_true", help="只报漂移，不写盘")
+    ap.add_argument("--check", action="store_true",
+                    help="只报漂移与待删清单，不写盘")
+    ap.add_argument("--prune", action="store_true",
+                    help="删除镜像里的残留已发布文档（默认只打印「需删除：<路径>」）")
     ap.add_argument("--dry-run", action="store_true", help="打印将写入的文件，不落盘")
     ap.add_argument("--self-test", action="store_true", help="临时假目录里自证不变量，不碰真安装点")
     args = ap.parse_args()
@@ -260,23 +331,39 @@ def main() -> int:
         return 0
 
     primary = masters[0]
+    private = gitignored_doc_paths()
+    unregistered = unregistered_rels(primary, private)
+    for rel in unregistered:
+        print(f"未登记公开件类型：{rel}（登记表 {PUBLIC_SURFACE_REL} 未列该类型，"
+              "既不发布也不静默忽略）")
+    if unregistered:
+        return 1
+
     check_mode = args.check or args.dry_run
+    stale = stale_docs(primary, private=private)
+    removed = prune(stale, dry_run=check_mode or not args.prune) if (stale and args.prune) else 0
     changes = plan(primary, masters, dry_run=check_mode)
 
-    if not changes:
+    for rel in stale:
+        print(f"需删除：{rel}" + ("" if args.prune else "（未加 --prune，仅报告不删除）"))
+    if args.prune and removed:
+        print(f"已按 --prune 删除镜像残留 {removed} 个（正本侧未被动）")
+
+    if not changes and not stale:
         print(f"已同步，无需写入（主正本：{primary}；正本 {len(masters)} 处 + 仓库镜像）")
         return 0
     if args.check:
-        print(f"漂移 {len(changes)} 处（--check 不写盘）：")
+        print(f"漂移 {len(changes)} 处、待删 {len(stale)} 处（--check 不写盘）：")
         for c in changes:
             print(f"  - {c}")
         return 1
-    print(f"写入 {len(changes)} 处（主正本：{primary}）")
-    for c in changes:
-        print(f"  - {c}")
+    if changes:
+        print(f"写入 {len(changes)} 处（主正本：{primary}）")
+        for c in changes:
+            print(f"  - {c}")
     if args.dry_run:
         print("--dry-run：以上均未落盘")
-    return 0
+    return 1 if (stale and not args.prune) else 0
 
 
 if __name__ == "__main__":

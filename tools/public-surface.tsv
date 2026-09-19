@@ -1,0 +1,12 @@
+kind	match	action	reason
+# 公开件登记表：「什么算公开件」的唯一出处。publish 按它决定落不落镜像、
+# sync_check 按它决定比什么、preflight 按它决定扫什么与报什么。
+# 格式：kind <TAB> glob <TAB> action <TAB> reason
+#   action = publish     正本文本经发布面变换落仓库镜像
+#   action = distribute  编辑源在仓库，反向分发给各安装正本
+# glob 语义按路径分段匹配：* 不跨目录，** 匹配零或多段（fnmatch 的 * 会跨目录，故自建）。
+# 未登记类型的处理口径：报错点名，绝不静默忽略，也绝不退化成「本包没有公开件」。
+text	SKILL.md	publish	标准正本，唯一文本编辑源
+text	references/**/*.md	publish	参考文档与随包知识文档（含 references/memory/）
+tool	tools/*.py	distribute	包内五件工具与闸，编辑源在仓库
+tool	tools/*.tsv	distribute	工具读取的数据件（审词清单、本登记表）

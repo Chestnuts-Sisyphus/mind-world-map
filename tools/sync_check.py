@@ -98,6 +98,33 @@ def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def private_master_problems(private_rels, masters, reader=None):
+    """登记在案的本地私有件（不进公开包，因此镜像侧比不到）改由「正本之间」兜底：
+    三处安装正本都在场就必须逐字节一致；任一处没有这件 = 那台机器没装齐，跳过不假报。
+
+    缺件与漂移是两种结论：缺件不报警，漂移必点名——前者是新机器的正常形态，
+    后者是「改了 A 没改 B」的历史事故形态（安装点布局互比已经抓过一次）。
+    """
+    reader = raw_bytes if reader is None else reader
+    problems, checked = [], 0
+    present = [d for d in masters if d.is_dir()]
+    for rel in sorted(private_rels):
+        texts = {}
+        missing = False
+        for d in present:
+            path = d / rel
+            if path.is_file():
+                texts[d.as_posix()] = reader(path)
+            else:
+                missing = True
+        if missing or len(texts) < 2:
+            continue
+        checked += 1
+        if len(set(texts.values())) > 1:
+            problems.append(f"私有正本不一致：{rel}（{'、'.join(texts)}）")
+    return problems, checked
+
+
 def compare(repo_root: Path, masters):
     """比对核心：返回 (问题清单, 仓库公开文件集, 存在的正本, 跳过的正本)。
 
@@ -150,6 +177,9 @@ def compare(repo_root: Path, masters):
                     problems.append(f"镜像未套发布面变换：{rel}（仓库内容与 {local} 原文逐字节相同）")
                 else:
                     problems.append(f"发布面不一致：{rel}（{local} vs 仓库）")
+    # 私有件不进公开包，镜像侧比不到；改由「正本之间」兜底，缺件不假报、漂移必点名。
+    private_problems, _n = private_master_problems(private, present)
+    problems += private_problems
     return problems, repo_rels, present, skipped
 
 
@@ -249,6 +279,33 @@ def self_test() -> int:
         check("install-point layout compares private docs too",
               "references/memory/private-notes.md" in rels)
 
+        # 私有正本一致性（本轮新增）：三处都在场才判，缺件不假报、漂移必点名。
+        priv = "references/memory/private-notes.md"
+        m_a, m_b, m_c = root / "mA", root / "mB", root / "mC"
+        for side in (m_a, m_b, m_c):
+            _put(side / priv, RAW_TEXT)
+        problems, counted = private_master_problems({priv}, [m_a, m_b, m_c])
+        check("identical private masters pass", not problems and counted == 1)
+        _put(m_c / priv, RAW_TEXT + "\nC 处独自演进了一句。\n")
+        problems, counted = private_master_problems({priv}, [m_a, m_b, m_c])
+        check("diverging private master named",
+              any(priv in p and "私有正本不一致" in p for p in problems))
+        os.remove(m_c / priv)
+        problems, counted = private_master_problems({priv}, [m_a, m_b, m_c])
+        check("missing private file skips instead of crying",
+              not problems and counted == 0)
+
+        # 反向接线证明：把「逐字节比较」换成「只看首个字节」，同样的漂移就成了绿灯。
+        original_cmp = raw_bytes
+        try:
+            globals()["raw_bytes"] = lambda p: original_cmp(p)[:1]
+            _put(m_b / priv, RAW_TEXT + "\nB 处漂移。\n")
+            problems, counted = private_master_problems({priv}, [m_a, m_b])
+            check("weakening the byte comparison hides real drift", not problems and counted == 1)
+        finally:
+            globals()["raw_bytes"] = original_cmp
+            _put(m_b / priv, RAW_TEXT)
+
     return 0 if ok else 1
 
 
@@ -280,7 +337,9 @@ def main(argv) -> int:
         return 1
     tail = f"（另有 {len(skipped)} 处正本目录不存在，已跳过）" if skipped else ""
     if (REPO / ".gitignore").is_file():
-        print(f"一致：仓库 + {len(present)} 个本地 skill 正本，共 {len(repo_rels)} 个公开文件{tail}")
+        _p, checked = private_master_problems(private_rels(REPO), present)
+        print(f"一致：仓库 + {len(present)} 个本地 skill 正本，共 {len(repo_rels)} 个公开文件，"
+              f"私有正本逐字比对 {checked} 件{tail}")
     else:
         print(f"一致：{len(present)} 处本地 skill 正本逐字互比，共 {len(repo_rels)} 个文档"
               f"（安装点存的是原文，发布面比对只在镜像仓库里做）{tail}")

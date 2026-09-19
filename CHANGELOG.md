@@ -33,6 +33,17 @@ generated from the matching section below, so a version without a section here c
   end: staging a probe PNG made the repository gate exit 1 naming it (with `crlf-in-tracked-file`
   and the README's `unlisted-tracked-file` firing alongside), unstaging returned it to 0, and the
   same file dropped into a master skill directory fired there too. Self-test 47 -> 50 cases.
+- **Added (`tools/sync_check.py`)**: registered private documents (the local-only notes that
+  `.gitignore` deliberately keeps out of the package) are now compared byte-for-byte *between* the
+  local masters -- 5 documents measured on this machine. A master that does not carry a given
+  private document is skipped rather than reported, because a fresh machine legitimately has fewer
+  files, while a real divergence must be named. Proved end to end: one appended line inside a
+  second master's copy of the migration handover note made the sync gate exit 1 naming that
+  document and all three
+  masters, and restoring the bytes returned it to 0. Self-test 13 -> 17 cases, including the
+  skip-does-not-cry case and a reverse-wiring proof that comparing only the first byte lets drift
+  through. The success line now states how many private documents were actually compared, so the
+  check cannot pass by silently checking nothing.
 - **Added (`tools/validate_xmind.py`)**: two more content checks, taking the shipped set from six to
   eight. `folding-key` accepts only `"branch": "folded"` and names `"folded": true`, `"collapsed"`
   and a `branch` value that is not `folded` -- those keys do not fold *at all*, the failure that cost

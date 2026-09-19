@@ -52,7 +52,16 @@ Then trigger it with `/mindmap-engineering` (or let the agent load it automatica
 
 ## 🧪 How to verify a map
 
-- `xmind validate` → 0 errors is the floor, not the bar.
+- `xmind validate <file>` → 0 errors is the floor, not the bar. Measured against the official
+  CLI (v0.2.3) on this machine: it checks **structure only** — id uniqueness, range bounds,
+  summary pairing, relation endpoints, theme roles. Warnings do not move the exit code; each of
+  these does, with a distinguishable message: missing file, file that is not a zip, zip without
+  `content.json`, truncated file, missing argument, unknown subcommand. Clearing `PATH` still
+  exits 1 ("node" not found) instead of passing silently. On Windows, non-shell callers must
+  invoke `xmind.cmd` (the bare `xmind` is an npm shim).
+- The **content** standard is not machine-checked by that CLI: the minimum set (no punctuation,
+  graded node length, top-level budget, fan-out cap, note invariants) has to be self-built per
+  the two-generation checklist in [SKILL.md](SKILL.md).
 - Headless render check: open a **copy** of the file (never the original) with GPU compositing disabled, capture the window via PrintWindow, and **poll on non-white content ratio — >2% counts as rendered**. Fixed sleep durations produce all-white false negatives (cold start measured at ~55 s of blank on the reference machine). Windows OCR requires a backslash-absolute image path.
 - After any `git checkout`, re-run both gates — see [How to update](#-how-to-update).
 

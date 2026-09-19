@@ -7,7 +7,7 @@ generated from the matching section below, so a version without a section here c
 
 ## [Unreleased]
 
-_Nothing yet. Release flow reopens this section after each tag; see CONTRIBUTING._
+- **Fixed (`release.yml`)**: releases the workflow creates now carry a title. The first workflow-created release came out nameless while every hand-made release in this repo had one.
 
 ## v1.0.4 — 2026-09-19
 

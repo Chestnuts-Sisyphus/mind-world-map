@@ -59,6 +59,21 @@ jobs:
           python tools/validate_xmind.py examples/out/example.xmind
           python examples/example_build.py --self-test
 
+      # Structure validation via official CLI (npm package @xmindltd/xmind-cli).
+      # Windows users should run `xmind.cmd` instead of bare `xmind`. This job
+      # runs only if the CLI is available; otherwise it prints "skipped" and exits 0.
+      # The package is not shipped with this repo — users must install it separately.
+      # Browser-based auth login required only once per machine.
+      - name: Structure validation (advisory)
+        continue-on-error: true
+        run: |
+          if command -v xmind >/dev/null 2>&1; then
+            echo "Running structure validation on example.xmind..."
+            xmind validate examples/out/example.xmind || echo "Structure validation failed (non-blocking)"
+          else
+            echo "Skipped: xmind CLI not found (install @xmindltd/xmind-cli npm package)"
+          fi
+
       # External links are somebody else's uptime: reported on every run so a link that
       # died for good is visible in the log, never a reason to block a release. The tool
       # already exits 0 in this mode; continue-on-error covers a flaky network runner.

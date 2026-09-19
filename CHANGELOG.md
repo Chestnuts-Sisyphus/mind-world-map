@@ -20,6 +20,16 @@
   and the private-mention check takes an injectable name list, so no fixture copies a real local
   directory or a real private file name. Fixture text is still required to have the shape the rules
   detect (drive prefix, wikilink), which is what the exemption markers on those lines state.
+- **Added (`tools/public-surface.tsv`)**: unified registry defining what counts as "public artifact",
+  shared by publish / sync_check / preflight. Unregistered types are named (not silently ignored);
+  missing registry = error (not "no public artifacts"). Self-test 16 -> 17 cases.
+- **Added (`tools/publish.py --prune`)**: mirror cleanup when master deletes published docs. Default
+  prints "需删除：<路径>" without writing; `--prune` actually removes mirror residues. Idempotent,
+  never touches master files. Self-test 17 -> 18 cases.
+- **Added (`.github/workflows/ci.yml`)**: structure validation advisory step via official CLI
+  (@xmindltd/xwind-cli). Runs only if CLI available; otherwise prints "skipped" and exits 0. Never
+  blocks CI. Windows users should use `xmind.cmd` instead of bare `xmind`. Browser-based auth login
+  required only once per machine. Package not shipped with this repo — users must install separately.
 
 ## v1.2.1 — 2026-09-19 — Frozen check counts are the ones that go stale
 

@@ -15,7 +15,7 @@ jobs:
       # Third-party actions are pinned to commit SHAs, not movable tags: a tag name can be
       # retargeted upstream, and this job holds a write token. Comments record which release
       # each SHA corresponds to, which is what Dependabot updates.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.2.2
         with:
           # Full history + tags: the main-HEAD comparison and the version/tag alignment
           # check both need refs that a shallow single-tag checkout does not carry.

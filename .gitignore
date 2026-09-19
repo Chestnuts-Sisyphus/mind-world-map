@@ -12,3 +12,6 @@ references/memory/cm-closure-mindmap-pipeline.md
 references/memory/cm-zhongshen-mindmap-delivered.md
 references/memory/connectome-cm-core-definition.md
 references/memory/connectome-mindmap-project.md
+
+# 示例构建产物：.xmind 由 examples/example_build.py 从数据层重建，不入版本库
+examples/out/

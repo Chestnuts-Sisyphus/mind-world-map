@@ -25,6 +25,8 @@ Every rule in here is a scar: distilled from six real rounds of rework (2026-08 
 | [references/memory/](references/memory/) | 6 deep-dive knowledge documents: visual style baseline, CLI generation flow, narrative calibration, render-flicker troubleshooting, and more. |
 | [tools/sync_check.py](tools/sync_check.py) | Read-only sync gate: SHA256-compares the repo mirror against your local skill master copies (publish rules applied); exits non-zero and names divergent files. Missing master directories are skipped, so it is safe to run anywhere. |
 | [tools/preflight.py](tools/preflight.py) | Read-only publication gate: local-machine traces (drive-letter paths, 8.3 short names, user-directory segments, local account name), credential shapes, dead relative links and dead document pointers, private files named in public docs, EN/ZH heading-structure drift, identity-term regression. Reports `file:line rule` only — never the matched text. `--self-test` proves every category actually fires. |
+| [tools/validate_xmind.py](tools/validate_xmind.py) | The delivery gate made executable in-package: unpacks `content.json` and enforces the content minimum set (punctuation ban, graded node length, top-level budget ≤ 9, fan-out ≤ 13, four note invariants, `right-number` vs branch count). Exit 0 clean / 1 names violations / 2 unreadable file; `--self-test` proves each check fires and `--emit-fixture` materializes a synthetic map. |
+| [examples/](examples/) | Runnable data/build pair: `example_data.py` (content + term ledger + structure plan) and `example_build.py` (assembles `content.json`, zips an `.xmind`, then verifies it with the gate above). Also the reverse proof: break one title in the data and the build fails. |
 
 ## 🔑 Core ideas in 60 seconds
 
@@ -48,20 +50,36 @@ cp -r mind-world-map ~/.claude/skills/mindmap-engineering
 
 Then trigger it with `/mindmap-engineering` (or let the agent load it automatically on any mind-map task).
 
-> **Scope note.** This repo is the *capability* (standards, gates, protocols, knowledge base). Concrete maps produced with it belong to their respective subject projects, not here. The reference pipeline and map-validation scripts were developed against a personal local workspace and are **not** part of this public package — [SKILL.md](SKILL.md) specifies what each component must do, so you can implement it in your own toolchain; `xmind validate` plus the two-generation QA checklist in SKILL.md is the executable floor.
+> **Scope note.** This repo is the *capability* (standards, gates, protocols, knowledge base). Concrete maps produced with it belong to their respective subject projects, not here. The delivery gate is executable *inside* the package: `tools/validate_xmind.py` enforces the content minimum set, and `examples/` shows the data/build split end to end. Project-specific builders from the author's own workspace (restructuring, rename maps, family merges for one particular map) stay on that side — [SKILL.md](SKILL.md) specifies what each role must do, so you can implement them in your own toolchain.
+
+## 🚀 Run your first map
+
+Four commands, from a clean clone — build a real `.xmind` out of the data layer and verify it
+with the single acceptance line the package ships:
+
+```bash
+python examples/example_build.py                        # data -> content.json -> examples/out/example.xmind
+python tools/validate_xmind.py examples/out/example.xmind   # the delivery gate: exit 0
+python tools/validate_xmind.py --self-test              # proof that each of the six checks fires
+python examples/example_build.py --self-test            # reverse proof: break one title, build fails
+```
 
 ## 🧪 How to verify a map
 
-- `xmind validate <file>` → 0 errors is the floor, not the bar. Measured against the official
-  CLI (v0.2.3) on this machine: it checks **structure only** — id uniqueness, range bounds,
-  summary pairing, relation endpoints, theme roles. Warnings do not move the exit code; each of
-  these does, with a distinguishable message: missing file, file that is not a zip, zip without
-  `content.json`, truncated file, missing argument, unknown subcommand. Clearing `PATH` still
-  exits 1 ("node" not found) instead of passing silently. On Windows, non-shell callers must
-  invoke `xmind.cmd` (the bare `xmind` is an npm shim).
-- The **content** standard is not machine-checked by that CLI: the minimum set (no punctuation,
-  graded node length, top-level budget, fan-out cap, note invariants) has to be self-built per
-  the two-generation checklist in [SKILL.md](SKILL.md).
+- **Content gate (in this package)** — `python tools/validate_xmind.py <file.xmind>` unpacks
+  `content.json` and enforces the minimum set the delivery gate promises: punctuation ban,
+  graded node length (2-7 organisational / 2-12 leaf), top-level budget ≤ 9, fan-out ≤ 13,
+  the four note invariants, and `right-number` matching the real branch count. Exit 0 = clean;
+  exit 1 names `node id + rule` (never more than 40 characters of the title); exit 2 = the file
+  is not a readable `.xmind`. `--self-test` proves every one of those checks actually fires.
+- **Structure floor (official CLI)** — `xmind validate <file>` → 0 errors is required but not
+  sufficient. Measured against the official CLI (v0.2.3) on this machine: it checks
+  **structure only** — id uniqueness, range bounds, summary pairing, relation endpoints, theme
+  roles. Warnings do not move the exit code; each of these does, with a distinguishable
+  message: missing file, file that is not a zip, zip without `content.json`, truncated file,
+  missing argument, unknown subcommand. Clearing `PATH` still exits 1 ("node" not found)
+  instead of passing silently. On Windows, non-shell callers must invoke `xmind.cmd`
+  (the bare `xmind` is an npm shim).
 - Headless render check: open a **copy** of the file (never the original) with GPU compositing disabled, capture the window via PrintWindow, and **poll on non-white content ratio — >2% counts as rendered**. Fixed sleep durations produce all-white false negatives (cold start measured at ~55 s of blank on the reference machine). Windows OCR requires a backslash-absolute image path.
 - After any `git checkout`, re-run both gates — see [How to update](#-how-to-update).
 
@@ -79,7 +97,11 @@ mind-world-map/
 │   ├── preflight.py              # publication gate: traces / secrets / dead links / privacy (read-only)
 │   ├── identity-terms.tsv        # human-reviewed identity word list the gate reads (block/exempt + reason)
 │   ├── release_notes.py          # pulls a version's release body out of CHANGELOG.md
-│   └── publish.py                # publish entry: master -> mirror transform (the only writer, idempotent)
+│   ├── publish.py                # publish entry: master -> mirror transform (the only writer, idempotent)
+│   └── validate_xmind.py         # delivery gate: content minimum set on a built .xmind
+├── examples/
+│   ├── example_data.py           # data layer: content + term ledger + structure plan table
+│   └── example_build.py          # build layer: data -> content.json -> .xmind -> verified
 ├── .github/
 │   ├── workflows/ci.yml          # runs both gates + link & structure checks
 │   ├── workflows/release.yml     # tag -> GitHub release, body from the changelog section

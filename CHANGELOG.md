@@ -13,11 +13,28 @@ generated from the matching section below, so a version without a section here c
   direction and the non-repo refusal; the sync gate proves drift and unredacted-mirror
   detection in both layouts; the extractor proves heading variants and refuses a
   bare-version title. CI runs all four self-tests.
-- **Added (`tools/preflight.py`)**: two checks that until now lived as manual byte greps --
-  `crlf-in-tracked-file` (byte-level CRLF in any tracked file) and `version-tag-drift`
-  (`SKILL.md` metadata version must equal the newest `v*` tag). Both fire on injected
-  violations and stay silent on the clean case; CI checkout now fetches tags so the
-  version check has something real to compare against.
+- **Added (`tools/validate_xmind.py`)**: the delivery gate is finally executable from inside the
+  package. It unpacks `content.json` and enforces the content minimum set -- punctuation ban,
+  graded node length (2-7 organisational / 2-12 leaf, ASCII term keys exempt), top-level budget
+  <= 9, fan-out <= 13, the four note invariants (line shape, flush-left term present in the
+  title, one term once, dependency chain closed and acyclic) and `right-number` vs the real
+  branch count. Exit 0 / 1 (names `node id + rule`, excerpt capped at 40 characters) / 2
+  (unreadable file). `--self-test` carries synthetic fixtures for every check plus a reverse
+  wiring proof (unregister one check and its fixture goes green); `--emit-fixture` dumps any
+  fixture as a real `.xmind`.
+- **Added (`examples/`)**: a runnable data/build pair. `example_data.py` holds the content, the
+  term ledger and the structure plan; `example_build.py` assembles `content.json`, zips an
+  `.xmind`, sets `right-number` automatically, asserts plan coverage (missing or extra child
+  titles fail the build) and verifies the output with the gate above. `--self-test` is the
+  reverse proof: corrupt one title in the data and the chain goes red. README gained the
+  "Run your first map" / 「跑通第一张图」 four-command section.
+- **Changed (docs)**: SKILL.md delivery gate #1 and README now point at the in-package
+  validator instead of declaring that map validation lives only in the author's workspace; the
+  remaining "not shipped" boundary is the project-specific builders, nothing else.
+- **Changed (`tools/preflight.py`)**: the publication scan now covers `.py` files outside
+  `tools/`, i.e. the example content (node titles and term definitions are published surface and
+  must carry no local-machine trace). End-to-end proof: adding a drive-letter path to
+  `examples/example_data.py` made the gate exit 1 naming that file; removing it returned 0.
 
 ## v1.0.7 — 2026-09-19
 

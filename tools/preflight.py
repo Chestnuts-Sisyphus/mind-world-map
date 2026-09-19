@@ -159,7 +159,9 @@ def tracked_text_files():
             continue
         if rel in private:
             continue
-        if p.suffix.lower() not in {".md", ".txt", ".yml", ".yaml"} and p.name != "LICENSE":
+        # `.py` 也扫：examples/ 是对外发布的内容件（示例节点标题与释义都在里面）。
+        # tools/ 已在上面排除——那两个脚本本身承载规则字面量，扫它们等于自己抓自己。
+        if p.suffix.lower() not in {".md", ".txt", ".yml", ".yaml", ".py"} and p.name != "LICENSE":
             continue
         out.append((rel, p))
     return out

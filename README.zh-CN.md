@@ -47,12 +47,23 @@ cp -r mind-world-map ~/.claude/skills/mindmap-engineering
 
 然后用 `/mindmap-engineering` 触发（或让 agent 在任何导图任务上自动加载）。
 
-> **边界说明。** 本仓是**能力**（标准、闸门、协议、知识库）。用它产出的具体成品图归各自的主体项目，不进本仓。管线脚本与成品校验脚本的参考实现在作者的本地工作区开发，**不随公开包发布**——[SKILL.md](SKILL.md) 完整规定了每个组件该做什么，你可以按口径自建；可执行底线是 `xmind validate` + SKILL 里的两代 QA 清单。
+> **边界说明。** 本仓是**能力**（标准、闸门、协议、知识库）。用它产出的具体成品图归各自的主体项目，不进本仓。交付闸在本包内**可执行**：`tools/validate_xmind.py` 守内容标准最低集，`examples/` 给出「数据层 → 构建层 → 验收」的完整跑通样例。只服务于某一项目的专属构建器（改名映射、家族合并、计划表重组那类）仍留在作者工作区——[SKILL.md](SKILL.md) 规定了每个角色该做什么，你可以照口径自建。
+
+## 🚀 跑通第一张图
+
+四条命令，在干净 clone 里从数据层造出一份真 `.xmind`，再用本包自带的唯一验收线验掉它：
+
+```bash
+python examples/example_build.py                        # 数据 -> content.json -> examples/out/example.xmind
+python tools/validate_xmind.py examples/out/example.xmind   # 交付闸：exit 0
+python tools/validate_xmind.py --self-test              # 自证六项检都会响
+python examples/example_build.py --self-test            # 反证：把数据改坏一处，构建即被拦
+```
 
 ## 🧪 如何验收一张图
 
 - `xmind validate <文件>` → 0 错只是底线，不是验收线。本机对官方 CLI（v0.2.3）逐条实跑取证：它**只查结构**——id 唯一性、range 边界、summary 配对、关系端点、theme 角色。警告不改变退出码；以下六种情形各自 exit 1 且报错形态可辨：文件不存在、文件不是 zip、zip 内缺 `content.json`、文件被截断、缺参数、子命令不存在。把 `PATH` 清空后同样 exit 1（报 node 不可用）而不会静默假通过。Windows 下非 shell 上下文调用要用 `xmind.cmd`（裸 `xmind` 是 npm 垫片）。
-- 该 CLI **不机器检查内容标准**：五项最低集（禁标点、分级字数、一级预算、扇出上限、笔记结构不变量）仍需按 [SKILL.md](SKILL.md) 的两代清单自建。
+- **内容面闸门（在本包内）** — `python tools/validate_xmind.py <文件.xmind>` 解 `content.json`，实装交付闸承诺的最低集六项：禁标点、分级字数（组织节点 2-7／叶子 2-12）、一级预算 ≤9、扇出 ≤13、笔记结构四不变量、`right-number` 与一级分支数一致。退出码 0=全过、1=点名违例（节点 ID + 规则名，标题摘句不超 40 字）、2=文件不是可读 `.xmind`；`--self-test` 用内置合成夹具证明每一检都会响。
 - 无头渲染取证：打开文件的**副本**（绝不碰原件），禁用 GPU 硬件合成，用 PrintWindow 抓窗，并**按非白内容占比轮询——占比 >2% 才算渲染就绪**。固定秒数盲抓必然产生全白假阴性（参照机器实测冷启动空白约 55 秒）。Windows OCR 读图须传反斜杠绝对路径。
 - 任何 `git checkout` 之后重跑两道闸——见下文「如何更新」。
 
@@ -70,7 +81,11 @@ mind-world-map/
 │   ├── preflight.py              # 发布闸：痕迹/凭据/死链/隐私（只读）
 │   ├── identity-terms.tsv        # 闸读取的人工审词清单（block/exempt + 理由）
 │   ├── release_notes.py          # 从 CHANGELOG.md 抽出某版本的 Release 正文
-│   └── publish.py                # 发布入口：正本 → 镜像变换（唯一写盘件，幂等）
+│   ├── publish.py                # 发布入口：正本 → 镜像变换（唯一写盘件，幂等）
+│   └── validate_xmind.py         # 交付闸：对成品 .xmind 跑内容标准最低集
+├── examples/
+│   ├── example_data.py           # 数据层：内容 + 词条表 + 结构计划表
+│   └── example_build.py          # 构建层：数据 → content.json → .xmind → 过闸
 ├── .github/
 │   ├── workflows/ci.yml          # 跑两道闸 + 链接与结构检查
 │   ├── workflows/release.yml     # tag → GitHub Release，正文取自 CHANGELOG

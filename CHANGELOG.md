@@ -7,6 +7,14 @@ generated from the matching section below, so a version without a section here c
 
 ## [Unreleased]
 
+Nothing queued.
+
+## v1.1.0 — 2026-09-19 — The delivery gate now ships inside the package
+
+The capability loop is closed inside the package: a shipped map can now be verified with code
+that lives here, the data/build paradigm has a runnable example, every publisher tool proves
+itself, and the publication and release paths gained machine checks.
+
 - **Added (`tools/publish.py`, `tools/sync_check.py`, `tools/release_notes.py`)**: each now
   carries its own `--self-test`, run inside a throwaway temp directory so no real install
   point is ever written. The publisher proves mirror hygiene, idempotence, edit-source

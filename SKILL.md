@@ -4,7 +4,7 @@ description: 思维导图工程化产出流程。凡任务涉及「导图、思�
 license: MIT
 metadata:
   author: "The mindmap-engineering authors"
-  version: "1.0.7"
+  version: "1.1.0"
   homepage: "https://github.com/Chestnuts-Sisyphus/mind-world-map"
 ---
 

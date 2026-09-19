@@ -135,7 +135,8 @@ def main() -> int:
     hits, code = V.validate_file(out)
     for h in hits:
         print(f"  - {h['node']} {h['rule']} {h.get('detail', '')}")
-    print("内容标准六检：通过" if code == 0 else f"内容标准六检：{len(hits)} 项违例")
+    print(f"内容标准 {len(V.CHECKS)} 检：通过" if code == 0
+          else f"内容标准 {len(V.CHECKS)} 检：{len(hits)} 项违例")
     return code
 
 

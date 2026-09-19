@@ -65,7 +65,7 @@ python examples/example_build.py --self-test            # 反证：把数据改�
 ## 🧪 如何验收一张图
 
 - `xmind validate <文件>` → 0 错只是底线，不是验收线。本机对官方 CLI（v0.2.3）逐条实跑取证：它**只查结构**——id 唯一性、range 边界、summary 配对、关系端点、theme 角色。警告不改变退出码；以下六种情形各自 exit 1 且报错形态可辨：文件不存在、文件不是 zip、zip 内缺 `content.json`、文件被截断、缺参数、子命令不存在。把 `PATH` 清空后同样 exit 1（报 node 不可用）而不会静默假通过。Windows 下非 shell 上下文调用要用 `xmind.cmd`（裸 `xmind` 是 npm 垫片）。
-- **内容面闸门（在本包内）** — `python tools/validate_xmind.py <文件.xmind>` 解 `content.json`，实装交付闸承诺的最低集六项：禁标点、分级字数（组织节点 2-7／叶子 2-12）、一级预算 ≤9、扇出 ≤13、笔记结构四不变量、`right-number` 与一级分支数一致。退出码 0=全过、1=点名违例（节点 ID + 规则名，标题摘句不超 40 字）、2=文件不是可读 `.xmind`；`--self-test` 用内置合成夹具证明每一检都会响。
+- **内容面闸门（在本包内）** — `python tools/validate_xmind.py <文件.xmind>` 解 `content.json`，实装交付闸承诺的最低集八项：禁标点、分级字数（组织节点 2-7／叶子 2-12）、一级预算 ≤9、扇出 ≤13、笔记结构四不变量、`right-number` 与一级分支数一致、折叠键只认 `"branch": "folded"`、零视觉标记（节点无 labels/markers、表内无关系线）。退出码 0=全过、1=点名违例（节点 ID + 规则名，标题摘句不超 40 字）、2=文件不是可读 `.xmind`；`--self-test` 用内置合成夹具证明每一检都会响。
 - 无头渲染取证：打开文件的**副本**（绝不碰原件），禁用 GPU 硬件合成，用 PrintWindow 抓窗，并**按非白内容占比轮询——占比 >2% 才算渲染就绪**。固定秒数盲抓必然产生全白假阴性（参照机器实测冷启动空白约 55 秒）。Windows OCR 读图须传反斜杠绝对路径。
 - 任何 `git checkout` 之后重跑两道闸——见下文「如何更新」。
 

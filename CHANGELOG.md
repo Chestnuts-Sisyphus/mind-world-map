@@ -2,6 +2,15 @@
 
 Nothing queued.
 
+## v1.2.1 — 2026-09-19 — Frozen check counts are the ones that go stale
+
+- **Fixed (`README.md`, `README.zh-CN.md`, `examples/`)**: v1.2.0 grew the shipped content checks
+  from six to eight and left four places still saying six -- both README descriptions of the
+  delivery gate, the example builder's own verdict line, and a node title in the example data.
+  A count written into prose rots the moment a check is added, which is exactly the drift this
+  round was meant to remove, so the builder now prints the number it read from the check registry
+  and the READMEs name the checks instead of counting them.
+
 ## v1.2.0 — 2026-09-19 — The gates refuse five more things, and the docs say what actually ships
 
 Round four of the migration audit: every gap that the third round left as prose became an

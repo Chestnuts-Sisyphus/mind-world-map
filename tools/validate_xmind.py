@@ -88,7 +88,7 @@ def violation(topic, rule, note=""):
     return {"node": tid, "rule": rule, "detail": note, "excerpt": excerpt}
 
 
-# ------------------------------------------------------------------ 六项检查
+# ------------------------------------------------------------------ 八项检查
 def check_punctuation(sheet_root, sheet):
     hits = []
     for topic, depth in walk(sheet_root):
@@ -424,7 +424,7 @@ def sheet_fixture_map():
 
 
 def self_test():
-    """六检各自的正例（人造违例必响）+ 定向例（只响该响的那一检）+ 阴性例（合规图全绿）
+    """每检各自的正例（人造违例必响）+ 定向例（只响该响的那一检）+ 阴性例（合规图全绿）
     + 反向接线证明（把那一检从注册表摘掉，对应用例必须变绿）。内存与 .xmind 文件两条入口
     都跑，因此 zip 往返也被覆盖；全部落在临时目录，与运行布局无关。"""
     ok = True

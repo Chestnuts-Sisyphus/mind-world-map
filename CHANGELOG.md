@@ -44,6 +44,12 @@ generated from the matching section below, so a version without a section here c
   skip-does-not-cry case and a reverse-wiring proof that comparing only the first byte lets drift
   through. The success line now states how many private documents were actually compared, so the
   check cannot pass by silently checking nothing.
+- **Added (`.github/workflows/link-watch.yml`)**: the advisory link sweep now has its own trigger so
+  a dead external target surfaces on its own rather than whenever somebody happens to push --
+  weekly (Monday 06:30 UTC) and on demand via `workflow_dispatch`, both non-blocking, with the
+  outcome written into the run's step summary (which links were unreachable, or that all answered).
+  Scheduled workflows only fire from the default branch, so this file is inert until the release
+  carrying it lands on `main`.
 - **Added (`tools/validate_xmind.py`)**: two more content checks, taking the shipped set from six to
   eight. `folding-key` accepts only `"branch": "folded"` and names `"folded": true`, `"collapsed"`
   and a `branch` value that is not `folded` -- those keys do not fold *at all*, the failure that cost

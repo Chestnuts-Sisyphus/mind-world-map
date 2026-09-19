@@ -91,6 +91,7 @@ mind-world-map/
 ├── .github/
 │   ├── workflows/ci.yml          # 跑两道闸 + 链接与结构检查
 │   ├── workflows/release.yml     # tag → GitHub Release，正文取自 CHANGELOG
+│   ├── workflows/link-watch.yml  # 每周与手动的体检式外链扫描（不阻断）
 │   ├── dependabot.yml            # 给钉死 SHA 的 action 提供升级通道
 │   ├── ISSUE_TEMPLATE/           # 缺陷 / 需求模板
 │   ├── CODEOWNERS                # 能力层的评审归属

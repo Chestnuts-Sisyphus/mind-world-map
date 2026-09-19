@@ -1,0 +1,55 @@
+name: Link watch
+
+# External links are somebody else's uptime, so a dead one is a finding to read,
+# not a reason to block a release. This workflow exists to make that finding
+# arrive on a schedule instead of whenever somebody happens to push: weekly, plus
+# a manual button for "check now". Both runs are advisory (continue-on-error).
+on:
+  workflow_dispatch:
+  schedule:
+    # Monday 06:30 UTC -- before the workday, after the weekend link rot.
+    - cron: '30 6 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  advisory-sweep:
+    runs-on: ubuntu-latest
+    steps:
+      # Actions are pinned by commit SHA (movable tags can be retargeted upstream); the
+      # trailing comment is the human-readable version Dependabot keeps current.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.11'
+
+      # The tool prints "file:line dead-online-link status=N host=..." only -- never the
+      # surrounding text -- and exits 0 in advisory mode. tee keeps the raw sweep for
+      # the summary step even when the runner reports the job as succeeded.
+      - name: Sweep external links (advisory)
+        continue-on-error: true
+        run: python tools/preflight.py --check-links-online | tee link-report.txt
+
+      # Results go where a scheduled run is actually read: the run's own page, not an
+      # inbox nobody watches. Empty report means every link answered 2xx/3xx.
+      - name: Write results into the step summary
+        if: always()
+        run: |
+          {
+            echo '## External link health (advisory, non-blocking)'
+            echo ''
+            echo 'Run triggered by: ${{ github.event_name }}'
+            echo ''
+            if grep -q 'dead-online-link' link-report.txt 2>/dev/null; then
+              echo 'Unreachable targets (server said 4xx/5xx):'
+              echo ''
+              echo '```'
+              grep 'dead-online-link' link-report.txt
+              echo '```'
+            else
+              tail -n 1 link-report.txt
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+        continue-on-error: true

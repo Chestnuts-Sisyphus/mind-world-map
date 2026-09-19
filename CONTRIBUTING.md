@@ -8,13 +8,15 @@ whatever project commissioned them, not here.
 
 - `SKILL.md` — the single source of truth for the standards and the delivery gates.
 - `references/` — pitfall archive, update protocol, deep-dive knowledge documents.
-- `tools/` — the two gates that keep the published text honest (see below).
+- `tools/` — the gates that keep the published text honest, plus `publish.py`, the one writer
+  (see below).
 
 ## Before you open a pull request
 
-Run both gates from a clean checkout; both must exit 0:
+Run the gates from a clean checkout; every one must exit 0:
 
 ```bash
+python tools/publish.py --check           # master / mirror / installed-tools drift, no writes
 python tools/preflight.py                 # publication review: traces / secrets / dead links / privacy
 python tools/preflight.py --self-test     # proves each check still fires
 python tools/sync_check.py                # only meaningful if you keep local skill master copies
@@ -29,6 +31,22 @@ MINDMAP_SKILL_MASTERS="~/a/skills/mindmap-engineering;~/b/skills/mindmap-enginee
 ```
 
 If you have no local masters, the gate reports that it skipped and exits 0 — CI relies on that.
+
+## Releasing
+
+The changelog is the only source of release notes, so the `[Unreleased]` section has a job:
+
+1. During ordinary work, every user-visible change gets a bullet under `## [Unreleased]`.
+2. To release, rename that section to `## vX.Y.Z — YYYY-MM-DD` and open a fresh, empty
+   `## [Unreleased]` above it in the same commit. The publication gate checks that
+   `[Unreleased]` exists and sits before the first version heading.
+3. Push to `main` and wait for CI, then tag: `git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin vX.Y.Z`.
+4. `.github/workflows/release.yml` re-runs the gates, extracts that version's section with
+   `python tools/release_notes.py vX.Y.Z`, and creates the release with it. No section, or an
+   empty one, fails the workflow instead of publishing a release with invented notes.
+
+`main` is protected: CI (the gates above) has to pass first, and a maintainer push that
+bypasses it is recorded in the release notes of the round that did it.
 
 ## Changing the standards
 

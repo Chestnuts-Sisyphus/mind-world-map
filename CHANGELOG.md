@@ -5,6 +5,29 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Release notes for each tag are
 generated from the matching section below, so a version without a section here cannot be released.
 
+## [Unreleased]
+
+- **Added (`tools/publish.py`)**: the master-to-mirror publication transform finally has an
+  executable, idempotent entry point in the package; the step used to be performed by a
+  throwaway script that was never published. `tools/**` is distributed back to every skill
+  install point, so the gate commands documented in `SKILL.md` are runnable there too.
+- **Added (gates)**: three detection categories the injection tests proved were missing --
+  local network details (loopback endpoints, proxy ports), personal-identity shapes (email
+  forms), and documentation that commands a script this package does not ship. The identity
+  word list moved out of code into `tools/identity-terms.tsv`, where every exemption carries
+  a reason. Repository layout and the "What's inside" table are checked against
+  `git ls-files` in both directions.
+- **Added (release path)**: `tools/release_notes.py` extracts a release body from the matching
+  changelog section, and `.github/workflows/release.yml` publishes a tag with it -- no
+  section, no release.
+- **Added (governance)**: `AGENTS.md`, `.github/CODEOWNERS`, branch protection on `main`
+  requiring CI, and Dependabot security alerts enabled.
+- **Fixed**: four `references/**` lines told readers to run scripts that are not in the
+  package; they now say so on the same line and point at the executable landing spot.
+  A local proxy port in the render-flicker notes was machine detail with no documentation
+  value. `xmind validate` is now described by what it actually measures (structure, five
+  classes, exit-code semantics) rather than by hope.
+
 ## v1.0.3 — 2026-09-19
 
 Gate self-fix found by end-to-end injection testing rather than by the checklist.

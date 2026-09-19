@@ -4,6 +4,7 @@
 
 ## Evidence
 
+- [ ] `python tools/publish.py --check` reports no master/mirror/tool drift
 - [ ] `python tools/preflight.py` exits 0
 - [ ] `python tools/preflight.py --self-test` reports PASS for every category
 - [ ] `python tools/sync_check.py` exits 0 (or reports "no local master, skipped")

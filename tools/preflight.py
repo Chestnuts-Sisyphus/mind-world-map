@@ -20,6 +20,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from release_notes import UNRELEASED_HEADING, VERSION_HEADING, section_for  # noqa: E402
+
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -451,6 +454,45 @@ def check_readme_layout():
     return hits
 
 
+def latest_local_tag():
+    """本机可见的最新 vX.Y.Z tag；取不到（浅克隆/无 tag）就跳过该子检查，不假报。"""
+    try:
+        out = subprocess.run(["git", "-C", str(REPO), "tag", "--sort=-v:refname"],
+                             capture_output=True, text=True, encoding="utf-8",
+                             errors="replace", timeout=30)
+    except Exception:
+        return ""
+    for line in out.stdout.splitlines():
+        if re.fullmatch(r"v\d+\.\d+\.\d+", line.strip()):
+            return line.strip()
+    return ""
+
+
+def check_changelog():
+    """发布口径三处一致：PR 模板要求在 [Unreleased] 下写条目 → CHANGELOG 必须有该段且在最前；
+    release.yml 从 CHANGELOG 抽正文 → 最新 tag 必须有对应段，否则本机就该拦。"""
+    if not is_repo_layout():
+        return []
+    path = REPO / "CHANGELOG.md"
+    if not path.is_file():
+        return ["CHANGELOG.md:1 changelog-missing"]
+    text = read(path)
+    lines = text.splitlines()
+    hits = []
+    unreleased = next((i for i, ln in enumerate(lines)
+                       if UNRELEASED_HEADING.match(ln.strip())), None)
+    first_version = next((i for i, ln in enumerate(lines)
+                          if VERSION_HEADING.match(ln.strip())), None)
+    if unreleased is None:
+        hits.append("CHANGELOG.md:1 changelog-unreleased-missing")
+    elif first_version is not None and unreleased > first_version:
+        hits.append("CHANGELOG.md:1 changelog-unreleased-not-first")
+    tag = latest_local_tag()
+    if tag and not section_for(tag, text)[1]:
+        hits.append(f"CHANGELOG.md:1 changelog-tag-without-section ({tag})")
+    return hits
+
+
 def check_skill_frontmatter():
     skill = REPO / "SKILL.md"
     if not skill.is_file():
@@ -578,6 +620,16 @@ def self_test():
     print(("PASS" if backward else "FAIL") + " readme-layout: 未写进树的跟踪文件被点名")
     ok = ok and forward and backward
 
+    # CHANGELOG 结构闸（内存文档自证，不碰磁盘）
+    fake_cl = "# Changelog\n\n## v9.9.9 - 2026-01-01\n\n- something real\n"
+    cl_has_unreleased = any(UNRELEASED_HEADING.match(ln.strip()) for ln in fake_cl.splitlines())
+    cl_missing_tag = section_for("v8.8.8", fake_cl)[1]
+    cl_found_tag = section_for("v9.9.9", fake_cl)[1]
+    print(("PASS" if not cl_has_unreleased else "FAIL") + " changelog: 缺 [Unreleased] 段的文档被识别")
+    print(("PASS" if not cl_missing_tag else "FAIL") + " changelog: 无对应版本段的 tag 被识别")
+    print(("PASS" if cl_found_tag else "FAIL") + " changelog: 有版本段的 tag 能正常抽出（非永远失败）")
+    ok = ok and (not cl_has_unreleased) and (not cl_missing_tag) and cl_found_tag
+
     # frontmatter 五键：注入一个只有 name/description 的块
     hits = frontmatter_issues("name: x\ndescription: y\n")
     print(("PASS" if hits else "FAIL") + f" frontmatter: 人造缺键块被拦（{len(hits)} 项）")
@@ -615,6 +667,7 @@ def main() -> int:
     findings += check_skill_frontmatter()
     findings += check_workflows_ascii()
     findings += check_readme_layout()
+    findings += check_changelog()
 
     # 非 md 的发布文件（LICENSE / yml 配置）只跑泄露类检测
     for rel, path in tracked_text_files():

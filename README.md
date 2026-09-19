@@ -78,9 +78,11 @@ mind-world-map/
 │   ├── sync_check.py             # master <-> mirror consistency gate (read-only)
 │   ├── preflight.py              # publication gate: traces / secrets / dead links / privacy (read-only)
 │   ├── identity-terms.tsv        # human-reviewed identity word list the gate reads (block/exempt + reason)
+│   ├── release_notes.py          # pulls a version's release body out of CHANGELOG.md
 │   └── publish.py                # publish entry: master -> mirror transform (the only writer, idempotent)
 ├── .github/
 │   ├── workflows/ci.yml          # runs both gates + link & structure checks
+│   ├── workflows/release.yml     # tag -> GitHub release, body from the changelog section
 │   ├── ISSUE_TEMPLATE/           # bug / feature templates
 │   ├── CODEOWNERS                # review ownership for the capability layer
 │   └── pull_request_template.md  # contributor checklist (gates included)

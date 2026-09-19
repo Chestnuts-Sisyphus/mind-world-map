@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # A tag that skips the gates would publish an unsafe surface: re-check here.
+      - name: Publication gates
+        run: |
+          python tools/preflight.py
+          python tools/preflight.py --self-test
+
+      # The changelog section is the only source of release notes. No section,
+      # no release -- this step must fail rather than invent a body.
+      - name: Extract release notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          python tools/release_notes.py "$TAG" --check
+          python tools/release_notes.py "$TAG" > release-notes.md
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" --notes-file release-notes.md --verify-tag

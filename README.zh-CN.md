@@ -69,9 +69,11 @@ mind-world-map/
 │   ├── sync_check.py             # 正本与镜像一致性闸（只读）
 │   ├── preflight.py              # 发布闸：痕迹/凭据/死链/隐私（只读）
 │   ├── identity-terms.tsv        # 闸读取的人工审词清单（block/exempt + 理由）
+│   ├── release_notes.py          # 从 CHANGELOG.md 抽出某版本的 Release 正文
 │   └── publish.py                # 发布入口：正本 → 镜像变换（唯一写盘件，幂等）
 ├── .github/
 │   ├── workflows/ci.yml          # 跑两道闸 + 链接与结构检查
+│   ├── workflows/release.yml     # tag → GitHub Release，正文取自 CHANGELOG
 │   ├── ISSUE_TEMPLATE/           # 缺陷 / 需求模板
 │   ├── CODEOWNERS                # 能力层的评审归属
 │   └── pull_request_template.md  # 贡献者自查清单（含两道闸）

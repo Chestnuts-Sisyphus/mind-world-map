@@ -25,6 +25,14 @@ generated from the matching section below, so a version without a section here c
   excluded after three measured false positives. Each new shape has a positive, negatives (labelled
   line, package self-reference) and a reverse-wiring proof that blinds the shape and watches the
   same violation go quiet. Self-test 40 -> 47 cases.
+- **Added (`tools/preflight.py`)**: `tracked-binary` names any binary among the tracked files (NUL
+  sniff over the first 8 KB of each), and the whitelist is deliberately empty because this package
+  ships no binaries -- one would be unreadable, undiffable and unverifiable from a clean clone. The
+  rule keeps working where there is no git: an install-point layout scans the package directory
+  instead, so it never quietly switches off, and output is path plus rule name only. Measured end to
+  end: staging a probe PNG made the repository gate exit 1 naming it (with `crlf-in-tracked-file`
+  and the README's `unlisted-tracked-file` firing alongside), unstaging returned it to 0, and the
+  same file dropped into a master skill directory fired there too. Self-test 47 -> 50 cases.
 - **Added (`tools/validate_xmind.py`)**: two more content checks, taking the shipped set from six to
   eight. `folding-key` accepts only `"branch": "folded"` and names `"folded": true`, `"collapsed"`
   and a `branch` value that is not `folded` -- those keys do not fold *at all*, the failure that cost

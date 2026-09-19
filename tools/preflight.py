@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """发布面预检闸（零写盘）：提交前扫描整个公开包，抓「本机痕迹 / 本机网络细节 /
 凭据形态 / 个人标识形态 / 死链 / 私有件点名 / 双语章节结构 / 身份回归 /
-包外脚本命令引用」九类问题。
+包外脚本命令引用 / 跟踪二进制件」十类问题。
 
 用法：
     python tools/preflight.py                 # 扫全仓，0=干净
@@ -671,6 +671,54 @@ def check_crlf():
     return crlf_hits([p.relative_to(REPO).as_posix() for _, p in tracked_text_files()])
 
 
+# 跟踪面里的二进制件：读不懂、diff 不了、在干净 clone 里也无法自查——发布包一旦有它，
+# 「只看发布面就能复验」这条线就断了。白名单当前为空（本包刻意零二进制），
+# 将来真要放进来必须逐条带理由，白名单不是垃圾桶。
+TRACKED_BINARY_ALLOW = {}
+BINARY_SNIFF_BYTES = 8000
+
+
+def _is_repo_at(root: Path) -> bool:
+    return (root / ".gitignore").is_file()
+
+
+def looks_binary(data: bytes) -> bool:
+    return b"\x00" in data[:BINARY_SNIFF_BYTES]
+
+
+def scanned_binary_items(repo: Path = REPO):
+    """仓库布局按 git ls-files 只判跟踪面（未跟踪的构建产物如 examples/out/ 不算）；
+    安装点布局没有 git，退化为扫包内目录——两种布局都在真检，不做静默跳过。"""
+    if _is_repo_at(repo):
+        names = git_tracked_files()
+        if names:
+            return [(r, repo / r) for r in names]
+    skip = {".git", "__pycache__", ".ruff_cache"}
+    return [(p.relative_to(repo).as_posix(), p) for p in sorted(repo.rglob("*"))
+            if p.is_file() and not skip.intersection(p.parts)]
+
+
+def binary_hits(items, allowed=None, reader=None):
+    """判定与取数分离（纯函数）：自测因此在任何布局下结论一致，也不碰真文件。"""
+    allowed = TRACKED_BINARY_ALLOW if allowed is None else allowed
+    reader = (lambda p: p.read_bytes()) if reader is None else reader
+    hits = []
+    for rel, path in items:
+        if rel in allowed:
+            continue
+        try:
+            data = reader(path)
+        except OSError:
+            continue
+        if looks_binary(data):
+            hits.append(f"{rel}:1 tracked-binary")
+    return hits
+
+
+def check_tracked_binary():
+    return binary_hits(scanned_binary_items())
+
+
 SKILL_VERSION = re.compile(r"^\s+version:\s*[\"']?(\d+\.\d+\.\d+)[\"']?\s*$", re.M)
 
 
@@ -888,6 +936,23 @@ def self_test():
         print(("PASS" if not weakened else "FAIL")
               + " crlf: 去掉字节级读取后该检失效（反向接线证明）")
         ok = ok and pos and neg and not weakened
+        # 跟踪二进制守卫（本轮新检，与行尾闸同在一个临时目录里）：取数与判定分离。
+        bin_items = [("evil.xmind", tmp / "evil.xmind"), ("notes.md", tmp / "lf.md")]
+        (tmp / "evil.xmind").write_bytes(b"PK\x03\x04" + b"\x00\x00" + b"\x1f\x8b" * 8)
+        pos_bin = binary_hits(bin_items) == ["evil.xmind:1 tracked-binary"]
+        neg_bin = not binary_hits([("logo-badge.png", tmp / "evil.xmind")],
+                              allowed={"logo-badge.png": "白名单示例：路径命中即放行"})
+        real_reader = Path.read_bytes
+        try:
+            globals()["Path"].read_bytes = lambda self: real_reader(self).replace(b"\x00", b"")
+            weakened_bin = binary_hits(bin_items[:1])
+        finally:
+            globals()["Path"].read_bytes = real_reader
+        print(("PASS" if pos_bin else "FAIL") + " tracked-binary: 人造二进制跟踪件被点名（只给路径与规则名）")
+        print(("PASS" if neg_bin else "FAIL") + " negative/tracked-binary: 白名单在案的二进制不误报")
+        print(("PASS" if not weakened_bin else "FAIL")
+              + " tracked-binary: 去掉二进制嗅探后该检失效（反向接线证明）")
+        ok = ok and pos_bin and neg_bin and not weakened_bin
 
     # 版本对齐闸（本轮新检）：漂移必报、对齐放行、拿不到 tag 时不假报
     skill_text = 'name: x\nmetadata:\n  version: "1.2.3"\n'
@@ -982,6 +1047,7 @@ def main() -> int:
     findings += check_readme_layout()
     findings += check_changelog()
     findings += check_crlf()
+    findings += check_tracked_binary()
     findings += check_version_tag()
 
     # 非 md 的发布文件（LICENSE / yml 配置）只跑泄露类检测

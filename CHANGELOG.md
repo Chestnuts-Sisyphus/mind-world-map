@@ -5,6 +5,18 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Release notes for each tag are
 generated from the matching section below, so a version without a section here cannot be released.
 
+## v1.0.3 — 2026-09-19
+
+Gate self-fix found by end-to-end injection testing rather than by the checklist.
+
+- **Fixed (`tools/preflight.py`)**: the identity check labelled its findings with the tracked term
+  itself (`identity:<term>`), so the scan output reproduced exactly the text the gate exists to keep
+  out of the package — contradicting this release's own promise that output is `file:line rule` only.
+  The rule name is now the fixed token `identity-term`; the term list stays internal to the checker.
+  Found by injecting a real violation into a copy of the package and reading the gate's stdout.
+- `SKILL.md` frontmatter `metadata.version` follows the release.
+- No previously published tag was moved; v1.0.2 remains as released.
+
 ## v1.0.2 — 2026-09-19
 
 Publication-hardening release: the publication review stopped being a manual sweep and became

@@ -155,7 +155,8 @@ def check_local_trace(rel, text):
 
 
 def check_identity(rel, text):
-    rules = [(f"identity:{term}", re.compile(re.escape(term))) for term in IDENTITY_TERMS]
+    """规则名固定为 identity-term：被跟踪词本身绝不进输出（扫描产物不得含命中原文）。"""
+    rules = [("identity-term", re.compile(re.escape(term))) for term in IDENTITY_TERMS]
     return scan_pattern(rel, text, rules)
 
 

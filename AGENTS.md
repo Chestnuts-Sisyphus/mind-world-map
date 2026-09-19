@@ -27,6 +27,7 @@ python tools/publish.py --check     # drift between master, mirror and installed
 python tools/preflight.py           # publication surface: traces, secrets, dead links, privacy
 python tools/preflight.py --self-test   # proves every check category still fires
 python tools/sync_check.py          # master <-> mirror equality (skips absent masters)
+python tools/preflight.py --check-links-online   # external links: reports, never blocks
 ```
 
 Every new detection rule needs an end-to-end demonstration before it ships: write a real
@@ -64,10 +65,23 @@ you add a file, update the tree, the table, and `CHANGELOG.md` in the same chang
 
 ## Releasing
 
-`main` is protected: CI (the gates above) must pass. A tag triggers
-`.github/workflows/release.yml`, which builds the release body from the matching
-`CHANGELOG.md` section and **fails if that section is missing** — so cut the changelog
-entry first, then tag. Release notes are never written by hand twice.
+A tag triggers `.github/workflows/release.yml`, and four things are machine-enforced there, so do
+them in one commit rather than hoping to notice:
+
+1. The `CHANGELOG.md` section for that version must exist and be non-empty — no section, no
+   release. Its heading is `## vX.Y.Z — YYYY-MM-DD — <subject>`; the subject becomes the GitHub
+   release title (and the tag annotation), so a heading with only a date is rejected.
+2. `metadata.version` in `SKILL.md` must equal the tag. Cutting a release therefore also bumps the
+   version, and the gate that compares the two is why version and tag always travel together.
+3. The tag must point at `main` HEAD. A tag on an older commit fails the workflow before anything
+   is published.
+4. Push the branch and the tag in one command (`git push origin main vX.Y.Z`), otherwise the CI run
+   for the version bump sees a version with no tag yet and reports the drift.
+
+Protection tier as actually configured: CI is a required status check on `main`, force-push and
+deletion are off, `.github/CODEOWNERS` merely suggests reviewers because required review is **not**
+enabled, and administrators can still bypass the required check (which is then recorded in the
+release notes of the round that did it).
 
 ## Credentials and accounts
 

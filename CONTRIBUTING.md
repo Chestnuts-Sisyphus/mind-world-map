@@ -37,16 +37,25 @@ If you have no local masters, the gate reports that it skipped and exits 0 — C
 The changelog is the only source of release notes, so the `[Unreleased]` section has a job:
 
 1. During ordinary work, every user-visible change gets a bullet under `## [Unreleased]`.
-2. To release, rename that section to `## vX.Y.Z — YYYY-MM-DD` and open a fresh, empty
-   `## [Unreleased]` above it in the same commit. The publication gate checks that
-   `[Unreleased]` exists and sits before the first version heading.
-3. Push to `main` and wait for CI, then tag: `git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin vX.Y.Z`.
-4. `.github/workflows/release.yml` re-runs the gates, extracts that version's section with
-   `python tools/release_notes.py vX.Y.Z`, and creates the release with it. No section, or an
-   empty one, fails the workflow instead of publishing a release with invented notes.
+2. To release, rename that section to `## vX.Y.Z — YYYY-MM-DD — <subject>` and open a fresh
+   `## [Unreleased]` above it in the same commit. The subject is not decoration: it becomes the
+   GitHub release title, and the publication gate refuses a heading that carries only a date.
+   Set `metadata.version` in `SKILL.md` to the same `X.Y.Z` in that commit — a gate compares it
+   against the newest tag, so the version bump and the tag travel together.
+3. Commit, tag that commit (`git tag -a vX.Y.Z -m "<the same subject>"`), then push both refs in
+   one command: `git push origin main vX.Y.Z`.
+4. `.github/workflows/release.yml` first checks the tag points at `main` HEAD — a tag on an older
+   commit fails instead of shipping a release for code that has already moved on. It then re-runs
+   the gates, extracts the section with `python tools/release_notes.py vX.Y.Z`, and creates the
+   release from it. No section, or an empty one, fails the workflow rather than publishing a
+   release with invented notes.
 
-`main` is protected: CI (the gates above) has to pass first, and a maintainer push that
-bypasses it is recorded in the release notes of the round that did it.
+`main` is protected: CI (the gates above) is a required status check, force-pushes and deletions
+are off, and a maintainer push that bypasses CI is recorded in the release notes of the round that
+did it. Two limits of the current tier, stated as they are: `.github/CODEOWNERS` only *suggests*
+reviewers, because required review is not switched on, and repository administrators can still
+bypass the required check. A change that must actually be reviewed needs branch protection's
+required-review setting, not the file alone.
 
 ## Changing the standards
 

@@ -24,7 +24,7 @@ Every rule in here is a scar: distilled from six real rounds of rework (2026-08 
 | [references/update-protocol.md](references/update-protocol.md) | The six-step protocol for updating an existing map (maps are build artifacts — hand-editing XMind is forbidden), plus three anti-regression safeguards. |
 | [references/memory/](references/memory/) | 6 deep-dive knowledge documents: visual style baseline, CLI generation flow, narrative calibration, render-flicker troubleshooting, and more. |
 | [tools/sync_check.py](tools/sync_check.py) | Read-only sync gate: SHA256-compares the repo mirror against your local skill master copies (publish rules applied); exits non-zero and names divergent files. Missing master directories are skipped, so it is safe to run anywhere. |
-| [tools/preflight.py](tools/preflight.py) | Read-only publication gate: local-machine traces (drive-letter paths, 8.3 short names, user-directory segments, local account name), credential shapes, dead relative links and dead document pointers, private files named in public docs, EN/ZH heading-structure drift, identity-term regression. Reports `file:line rule` only — never the matched text. `--self-test` proves every category actually fires. |
+| [tools/preflight.py](tools/preflight.py) | Read-only publication gate: local-machine traces (drive-letter paths, 8.3 short names, user-directory segments, local account name), credential shapes, dead relative links and dead document pointers, private files named in public docs, EN/ZH heading-structure drift, identity-term regression. Reports `file:line rule` only — never the matched text. `--self-test` proves every category actually fires, and `--check-links-online` sweeps external links as an advisory (blocking only under `--strict-links`). |
 | [tools/validate_xmind.py](tools/validate_xmind.py) | The delivery gate made executable in-package: unpacks `content.json` and enforces the content minimum set (punctuation ban, graded node length, top-level budget ≤ 9, fan-out ≤ 13, four note invariants, `right-number` vs branch count). Exit 0 clean / 1 names violations / 2 unreadable file; `--self-test` proves each check fires and `--emit-fixture` materializes a synthetic map. |
 | [examples/](examples/) | Runnable data/build pair: `example_data.py` (content + term ledger + structure plan) and `example_build.py` (assembles `content.json`, zips an `.xmind`, then verifies it with the gate above). Also the reverse proof: break one title in the data and the build fails. |
 
@@ -138,6 +138,7 @@ python tools/publish.py --check # drift between master, mirror and installed too
 python tools/sync_check.py      # names every divergent file; pass master dirs as args, or set MINDMAP_SKILL_MASTERS
 python tools/preflight.py       # names file:line for every publication-rule violation
 python tools/preflight.py --self-test   # proves each check still fires
+python tools/preflight.py --check-links-online   # external links: reported, not blocking
 ```
 
 > Project-specific knowledge documents listed in `.gitignore` stay local by design (this repo's own migration log among them); the sync check only compares the public file set, and preflight fails if a private document ever lands inside the package.

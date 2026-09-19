@@ -58,3 +58,10 @@ jobs:
           python examples/example_build.py
           python tools/validate_xmind.py examples/out/example.xmind
           python examples/example_build.py --self-test
+
+      # External links are somebody else's uptime: reported on every run so a link that
+      # died for good is visible in the log, never a reason to block a release. The tool
+      # already exits 0 in this mode; continue-on-error covers a flaky network runner.
+      - name: External link health (advisory)
+        continue-on-error: true
+        run: python tools/preflight.py --check-links-online

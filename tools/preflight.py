@@ -6,6 +6,8 @@
 用法：
     python tools/preflight.py                 # 扫全仓，0=干净
     python tools/preflight.py --self-test     # 每类注入一例人造违规，验证闸真的会响
+    python tools/preflight.py --check-links-online   # 追加联网体检外链（只报不断）
+    python tools/preflight.py --strict-links         # 外链不可达计入退出码
 
 同一道闸也可从本地 skill 正本目录运行（tools/ 已随包同步到安装点）：扫描前先套
 发布面变换表，因此正本里的原文身份词与盘符路径会先被变换掉，剩下的才是真泄露。
@@ -350,6 +352,66 @@ def check_links(rel, text):
             resolved = (REPO / clean) if clean.startswith("/") else (base / clean)
             if not resolved.exists():
                 hits.append(f"{rel}:{lineno} dead-relative-link")
+    return hits
+
+
+URL_HTTP = re.compile(r"https?://[^\s)\]\"'<>]+")
+USER_AGENT = "mind-world-map-preflight (link check)"
+# 取不到 = 判定不了（断网 / DNS / 超时），绝不当成死链——否则闸会在离线机器上
+# 把整包外链报成噪音，然后被所有人忽略。
+UNKNOWN_STATUS = 0
+# 这些状态码是「HEAD 不被待见」而非「链接坏了」，退回 GET 再判一次。
+HEAD_RETRY = (400, 403, 405, 501)
+
+
+def external_urls():
+    """包内全部 http(s) 链接：返回 [(相对路径, 行号, URL)]，同一 URL 只报首现处。"""
+    seen, out = set(), []
+    for rel, path in iter_public_md():
+        for lineno, line in enumerate(scan_text(path).splitlines(), 1):
+            for m in URL_HTTP.finditer(line):
+                url = m.group(0).rstrip(".,;:!?、。)")
+                if url in seen:
+                    continue
+                seen.add(url)
+                out.append((rel, lineno, url))
+    return out
+
+
+def http_status(url, timeout=15):
+    """真实取一次状态码；HEAD 被拒时退回 GET。返回 UNKNOWN_STATUS 表示判定不了。"""
+    import urllib.error
+    import urllib.request
+
+    def attempt(method):
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT}, method=method)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status
+
+    try:
+        return attempt("HEAD")
+    except urllib.error.HTTPError as exc:
+        if exc.code in HEAD_RETRY:
+            try:
+                return attempt("GET")
+            except Exception:
+                return exc.code
+        return exc.code
+    except Exception:
+        return UNKNOWN_STATUS
+
+
+def check_links_online(urls=None, status=http_status):
+    """外链体检（B4）：只把「服务器明确答了 4xx/5xx」算死链，报状态码与主机名。
+
+    取数与判定分离（urls / status 可注入），因此 --self-test 不必联网也能证明这条检会响。
+    """
+    from urllib.parse import urlparse
+    hits = []
+    for rel, lineno, url in (external_urls() if urls is None else urls):
+        code = status(url)
+        if code and code >= 400:
+            hits.append(f"{rel}:{lineno} dead-online-link status={code} host={urlparse(url).netloc}")
     return hits
 
 
@@ -788,6 +850,27 @@ def self_test():
     print(("PASS" if not no_tag else "FAIL") + " negative/version-tag: 取不到 tag 时不假报")
     print(("PASS" if no_version else "FAIL") + " version-tag: 读不到 version 也报（不许静默通过）")
     ok = ok and bool(drift) and not aligned and not no_tag and bool(no_version)
+
+    # 外链体检（本轮新增，B4）：状态判定与取数分离，故不联网也能自证
+    probe = [("README.md", 7, "https://example.com/gone")]
+    link_dead = check_links_online(probe, status=lambda url: 404)
+    link_ok = check_links_online(probe, status=lambda url: 200)
+    link_blind = check_links_online(probe, status=lambda url: UNKNOWN_STATUS)
+    pos = bool(link_dead) and "dead-online-link" in link_dead[0] and "example.com" in link_dead[0]
+    # 反向接线：让取链接这一步失明（正则改成什么都不匹配），整条检即失效
+    real_urls = external_urls()
+    original_re = globals()["URL_HTTP"]
+    try:
+        globals()["URL_HTTP"] = re.compile(r"(?!x)x")
+        blinded = external_urls()
+    finally:
+        globals()["URL_HTTP"] = original_re
+    rev = bool(real_urls) and not blinded and not check_links_online(blinded, status=lambda url: 404)
+    print(("PASS" if pos else "FAIL") + " links: 人造 404 外链被点名（只报状态码与主机名）")
+    print(("PASS" if not link_ok else "FAIL") + " negative/links: 200 外链不误报")
+    print(("PASS" if not link_blind else "FAIL") + " negative/links: 判定不了时不假报（断网≠死链）")
+    print(("PASS" if rev else "FAIL") + " links: 抽掉链接采集后该检失效（反向接线证明）")
+    ok = ok and pos and not link_ok and not link_blind and rev
     return 0 if ok else 1
 
 
@@ -804,6 +887,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="公开包发布面预检（零写盘）")
     ap.add_argument("--self-test", action="store_true", help="注入人造违规验证每类检测会响")
     ap.add_argument("--only", metavar="RULE", help="只跑指定规则名前缀，便于定位")
+    ap.add_argument("--check-links-online", action="store_true",
+                    help="额外联网体检包内 http(s) 外链（默认只报不断：外链坏了不该挡住发布）")
+    ap.add_argument("--strict-links", action="store_true",
+                    help="外链体检结果计入退出码（隐含 --check-links-online）")
     args = ap.parse_args()
 
     if args.self_test:
@@ -844,6 +931,13 @@ def main() -> int:
         findings = [f for f in findings if args.only in f]
 
     findings = sorted(set(findings))
+    want_links = args.check_links_online or args.strict_links
+    urls = external_urls() if want_links else []
+    link_hits = check_links_online(urls) if want_links else []
+    if args.strict_links:
+        findings = sorted(set(findings + link_hits))
+        link_hits = []
+
     if findings:
         print(f"发布面预检失败：{len(findings)} 项")
         for f in findings:
@@ -851,6 +945,13 @@ def main() -> int:
         return 1
     n = len(list(iter_public_md())) + 1
     print(f"发布面预检通过：全部规则零命中，已扫 {n} 个文件")
+    if want_links and link_hits:
+        print(f"外链体检（不阻断）：{len(urls)} 条中 {len(link_hits)} 条不可达，"
+              f"--strict-links 可计入退出码")
+        for f in link_hits:
+            print(f"  - {f}")
+    elif want_links:
+        print(f"外链体检：{len(urls)} 条全部可达（判定不了的从不记为死链）")
     return 0
 
 

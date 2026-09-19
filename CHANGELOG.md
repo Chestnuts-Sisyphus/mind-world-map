@@ -7,7 +7,22 @@ generated from the matching section below, so a version without a section here c
 
 ## [Unreleased]
 
-Nothing queued.
+- **Added (`tools/preflight.py`)**: `--check-links-online` sweeps every http(s) target in the
+  package and reports `dead-online-link` with the status code and host only, never the surrounding
+  text. It is advisory by default -- somebody else's uptime is not a reason to block a release --
+  and becomes blocking under `--strict-links`. A status it cannot determine (offline, DNS failure,
+  timeout) is deliberately *not* a dead link, otherwise the check would cry wolf on every laptop.
+  Four self-test cases cover 404 / 200 / undecidable / reverse-wiring (blind the collector and the
+  check goes quiet); end to end, a real 404 link written into README.md made the blocking run exit
+  1 naming that line while the advisory run stayed at 0, and removing it restored both. CI runs the
+  advisory form as its own step. Measured on the package as published: 10 distinct links, all 200.
+- **Changed (`CONTRIBUTING.md`, `AGENTS.md`)**: the release recipe now matches what the workflow
+  actually enforces (subject-bearing section heading, version bumped in the same commit as the tag,
+  tag on `main` HEAD, both refs pushed together), and the protection tier is stated honestly:
+  CI is required, `.github/CODEOWNERS` only suggests reviewers because required review is off, and
+  admins can still bypass the check.
+- **Fixed (`README.zh-CN.md`)**: the Chinese component table had never gained the delivery-gate and
+  examples rows its English twin got, so the two READMEs disagreed about what ships in the package.
 
 ## v1.1.0 — 2026-09-19 — The delivery gate now ships inside the package
 

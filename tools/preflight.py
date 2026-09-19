@@ -139,10 +139,56 @@ PERSONAL_IDENTITY_RULES = [
         r"\b[A-Za-z0-9][A-Za-z0-9._%+\-]*@[A-Za-z0-9][A-Za-z0-9\-]*(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}\b")),
 ]
 
-# 包外脚本命令引用：文档里写成可执行命令的 `python X.py`，脚本必须是本包发布物；
-# 否则同一行须显式标注「非本包发布物」，让读者知道这条命令不在包里。
+# 包外可执行物引用：文档里任何一条「照着就能跑」的外部命令，其对象必须是本包发布物；
+# 否则同一行须显式标注（非本包发布物 / 未随包发布 / not shipped / 作者本机历史）。
+# 上一版只认 `python X.py`，于是 .ps1 / .cmd / 计划任务名 / .lnk / ProgId 全从闸下漏过
+# （本轮逐行实测：一个文件里 8 处命中，标注数 0）。
 PYTHON_CMD_REF = re.compile(r"\bpython[3]?\s+([A-Za-z0-9_./\\:\-<>]+\.py)")
-NON_PACKAGE_MARKERS = ("非本包发布物", "未随包发布", "not shipped with this package")
+SCRIPT_FILE_REF = re.compile(r"\b[\w./\\\-~]+\.(?:ps1|cmd|bat|vbs|psm1|pyw)\b")
+TASK_REF = re.compile(r"(?i)(?:schtasks\b[^\n]*?/TN\s*[:=]?\s*[\"]?[\w\-. ]{3,}|计划任务\s*[\x60\"']?[\w\-.]{3,})")
+LNK_REF = re.compile(r"\b[\w\-.~ ]{2,60}\.lnk\b")
+REGISTRY_REF = re.compile(r"(?i)(?:\bProgId\b|\bHK(?:LM|CR|CU)\\|shell\\open\\command)")
+REBOOT_REF = re.compile(r"(?i)\bshutdown\s+/[ra]\b")
+NON_PACKAGE_MARKERS = ("非本包发布物", "未随包发布", "not shipped with this package", "作者本机历史")
+
+# 已知外部工具白名单：这些名字指向上游公开发布的产物，引用它们不构成「本机描摹」，
+# 也不要求读者去找一个不存在的包内文件。逐条带理由，白名单不是垃圾桶。
+EXTERNAL_TOOL_ALLOW = {
+    "xmind.cmd": "官方 @xmindltd/xmind-cli 在 Windows 上的 npm 垫片名，非 shell 上下文必须用它",
+    "xmind.exe": "XMind 桌面程序本体的进程名，公开产品",
+    "pythonw.exe": "CPython 自带的无窗口解释器入口，公开运行时",
+    "powershell": "Windows 内置 shell",
+    "schtasks.exe": "Windows 内置计划任务命令行工具（任务名本身不在此豁免）",
+    "cmd.exe": "Windows 内置 shell",
+}
+
+
+def _allowed_tool_token(line: str, token: str) -> bool:
+    """只有当命中的就是白名单里那个工具名（而非它所在的更长路径）时才放行。"""
+    return token.lower().lstrip(".\\") in EXTERNAL_TOOL_ALLOW or token.lower() in EXTERNAL_TOOL_ALLOW
+
+
+def check_external_script_ref(rel, text):
+    """文档里写成可执行命令的包外引用必须被点名：脚本文件、计划任务、快捷方式、注册表
+    键、重启命令五种形态一起管。只报行号与规则名，绝不回显命中内容。"""
+    hits = []
+    for lineno, line in enumerate(text.splitlines(), 1):
+        marked = any(marker in line for marker in NON_PACKAGE_MARKERS)
+        if marked:
+            continue
+        for m in PYTHON_CMD_REF.finditer(line):
+            script = m.group(1).replace("\\", "/").lstrip("./")
+            if not (REPO / script).is_file():
+                hits.append(f"{rel}:{lineno} external-command-ref")
+                break
+        else:
+            shapes = (SCRIPT_FILE_REF, TASK_REF, LNK_REF, REGISTRY_REF, REBOOT_REF)
+            for pat in shapes:
+                matched = [mm.group(0) for mm in pat.finditer(line)]
+                if matched and not all(_allowed_tool_token(line, tok.strip()) for tok in matched):
+                    hits.append(f"{rel}:{lineno} external-command-ref")
+                    break
+    return hits
 
 
 def tracked_text_files():
@@ -267,21 +313,6 @@ def check_personal_identity(rel, text):
             if not EMAIL_PLACEHOLDER.search(m.group(0)):
                 hits.append(f"{rel}:{lineno} personal-email")
                 break
-    return hits
-
-
-def check_external_script_ref(rel, text):
-    """文档里的 `python X.py` 必须指向包内脚本，否则同一行须标注非本包发布物。
-    只点名行号，不回显命令内容。"""
-    hits = []
-    for lineno, line in enumerate(text.splitlines(), 1):
-        for m in PYTHON_CMD_REF.finditer(line):
-            script = m.group(1).replace("\\", "/").lstrip("./")
-            if (REPO / script).is_file():
-                continue
-            if any(marker in line for marker in NON_PACKAGE_MARKERS):
-                continue
-            hits.append(f"{rel}:{lineno} external-script-ref")
     return hits
 
 
@@ -629,6 +660,11 @@ SELFTEST_CASES = [
     ("local-network", check_local_network, "回环端点 127.0.0.1:9999 与 Clash 代理 9999 下载稳"),
     ("personal-identity", check_personal_identity, "联系作者 " + "who" + "@" + "author.internal-host.test"),
     ("external-script", check_external_script_ref, "先跑 python not_shipped_tool.py 一遍"),
+    ("external-ps1", check_external_script_ref, "看门狗：workspace/default/watchdog_reboot.ps1 每小时一跑"),
+    ("external-task", check_external_script_ref, "计划任务 QuietRebootGuardOnThisMachine 登录时触发"),
+    ("external-lnk", check_external_script_ref, "Startup 目录里放了 LegacyTool.lnk 做自启动"),
+    ("external-registry", check_external_script_ref, "把参数烤进 ProgId 的 shell\\open\\command 里"),
+    ("external-reboot", check_external_script_ref, "条件满足后执行 shutdown /r /t 60 /f 一次"),
 ]
 
 
@@ -653,6 +689,12 @@ def self_test():
         ("external-script-marked",
          check_external_script_ref(SYNTH, "跑 python not_shipped.py（该脚本非本包发布物）"),
          "已标注非本包发布物的命令不报"),
+        ("external-whitelisted-tool",
+         check_external_script_ref(SYNTH, "Windows 下非 shell 上下文调用要用 xmind.cmd"),
+         "白名单里的官方 CLI 垫片不误报"),
+        ("external-author-history",
+         check_external_script_ref(SYNTH, "workspace/default/x.ps1 每十分钟一次（作者本机历史，外部不可复用）"),
+         "作者本机历史标注行放行"),
         ("email-placeholder", check_personal_identity(SYNTH, "示例 someone@example.com"),
          "占位邮箱不报"),
     ]

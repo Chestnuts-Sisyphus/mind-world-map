@@ -7,7 +7,14 @@ generated from the matching section below, so a version without a section here c
 
 ## [Unreleased]
 
-Nothing queued.
+- **Changed (release policy)**: version numbers now follow strict semantic versioning, stated
+  rather than implied. New executable checks shipped inside `tools/` are a **minor** bump, a fixed
+  or tightened check is a **patch**, documentation-only work rides along with whichever code round
+  it lands in. The next cut is therefore **v1.2.0**: this round adds machine checks to
+  `tools/preflight.py` (bare script-name reference, tracked-binary guard) and to
+  `tools/validate_xmind.py` (folding key, banned visual markers). Published tags are never moved or
+  retargeted, and every cut leaves a local `pre-vX.Y.Z` tag at the previous HEAD, unpushed, so a
+  rollback point exists without touching the public ref list.
 
 ## v1.1.1 — 2026-09-19 — External links get watched, and the docs stop overstating protection
 

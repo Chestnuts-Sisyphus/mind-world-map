@@ -95,6 +95,7 @@ mind-world-map/
 ├── tools/
 │   ├── sync_check.py             # master <-> mirror consistency gate (read-only)
 │   ├── preflight.py              # publication gate: traces / secrets / dead links / privacy (read-only)
+│   ├── public-surface.tsv        # registry of what counts as "public artifact" (shared by all gates)
 │   ├── identity-terms.tsv        # human-reviewed identity word list the gate reads (block/exempt + reason)
 │   ├── release_notes.py          # pulls a version's release body out of CHANGELOG.md
 │   ├── publish.py                # publish entry: master -> mirror transform (the only writer, idempotent)

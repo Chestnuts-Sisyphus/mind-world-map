@@ -107,11 +107,14 @@ def self_test():
           str([h["rule"] for h in V.validate_map(sheets)]))
     check("right-number 自动等于一级分支数",
           V.validate_map(sheets, exclude={"right-number"}) == [])
+
+    # 旧示例自测：改标题长度违规
     try:
         D.TREE[1][0][1][0][0] = original + "明显超过七个字的组织节点标题"
         broken = build_sheet()
         hits = V.validate_map(broken)
-        check("把数据改坏一处即被闸拦下", bool(hits) and any(h["rule"] == "tiered-length" for h in hits),
+        check("旧示例自测：标题超长被闸拦下",
+              bool(hits) and any(h["rule"] == "tiered-length" for h in hits),
               str(sorted({h["rule"] for h in hits})))
     finally:
         D.TREE[1][0][1][0][0] = original

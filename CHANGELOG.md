@@ -35,19 +35,19 @@ generated from the matching section below, so a version without a section here c
   `tools/`, i.e. the example content (node titles and term definitions are published surface and
   must carry no local-machine trace). End-to-end proof: adding a drive-letter path to
   `examples/example_data.py` made the gate exit 1 naming that file; removing it returned 0.
-- **Added (`tools/preflight.py`)**: the external-reference check no longer recognizes only
-  `python X.py`. It now covers script files (`.ps1/.cmd/.bat/.vbs/.psm1/.pyw`), scheduled-task
-  names (`schtasks /TN`, 计划任务 X), Startup `.lnk` entries, registry shapes (`ProgId`,
-  `shell\open\command`, `HKLM\...`) and reboot commands -- all reported as
+- **Added (`tools/preflight.py`)**: the external-reference check no longer recognizes only the
+  interpreter-plus-script shape. It now also names script files by extension (ps1, cmd, bat, vbs,
+  psm1, pyw), scheduled-task names, startup shortcut entries, registry program-identifier keys
+  and their open-command values, and reboot commands -- all reported as
   `external-command-ref`, location + rule name only. A reasoned allow-list keeps the official
-  CLI's `xmind.cmd` (and friends) from being false positives, proven by a negative case in
+  CLI's npm shim name (and friends) from being false positives, proven by a negative case in
   `--self-test`.
 - **Changed (`references/memory/xmind-render-flicker-compat.md`)**: the eight lines that the new
   shapes caught are annotated in place as author-machine history (「作者本机历史，外部不可
   复用」) rather than deleted -- the reusable conclusions (GPU compositing is the root cause,
-  SendKeys lands in the node editor, PS 5.1 misreads BOM-less UTF-8 scripts) stay, while the
-  task names, workspace script paths, ProgId guard and reboot window are now explicitly marked
-  as not shipped and not reproducible elsewhere.
+  SendKeys lands in the node editor, PowerShell 5.1 misreads BOM-less UTF-8 scripts) stay, while
+  the task names, workspace script paths, file-association guard and reboot window are now
+  explicitly marked as not shipped and not reproducible elsewhere.
 - **Added (SKILL.md)**: a one-line glossary for the three private names that appear in the docs
   (`Connectome`, `ZCode`, `MindmapLoop`), so an outside reader can parse the references without
   the names being stripped from the history.

@@ -24,7 +24,7 @@
 | [references/update-protocol.md](references/update-protocol.md) | 更新已有导图的六步协议（图是构建产物，禁手改 XMind）+ 三条防回归机制。 |
 | [references/memory/](references/memory/) | 6 份深度知识文档：视觉风格基线、CLI 本地出图流程、叙事校准、渲染闪退兼容等。 |
 | [tools/sync_check.py](tools/sync_check.py) | 只读同步闸：把仓库镜像与本地 skill 编辑正本逐文件比 SHA256（比对前先套发布面变换）；点名不一致文件。正本目录不存在则跳过，任何机器上跑都安全。 |
-| [tools/preflight.py](tools/preflight.py) | 只读发布闸：本机痕迹（盘符路径、8.3 短名、用户目录段、本机账号名）、凭据形态、相对链接与文档指针死链、公开文档点名私有件、中英章节结构漂移、身份词回归。只输出「文件:行号 + 规则名」，绝不输出命中内容。`--self-test` 自证每类都会响；`--check-links-online` 联网体检外链，默认只报不断（加 `--strict-links` 才计入退出码）。 |
+| [tools/preflight.py](tools/preflight.py) | 只读发布闸：本机痕迹（盘符路径、8.3 短名、用户目录段、本机账号名）、凭据形态、相对链接与文档指针死链、公开文档点名私有件、中英章节结构漂移、身份词回归。只输出「文件:行号 + 规则名」，绝不输出命中内容。扫描集覆盖全部跟踪文本件，`tools/` 不再整目录排除：必须留规则字面量的行，靠 `# preflight:rule-literal: <理由>` 逐行豁免，光有标记不写理由本身就是错误。无扩展名跟踪件（`.gitattributes`、`.github/CODEOWNERS`）同样进泄露类检；`.gitignore` 与人工审词清单只跑泄露类检，因为它们正是那两张清单本身。`--self-test` 自证每类都会响；`--check-links-online` 联网体检外链，默认只报不断（加 `--strict-links` 才计入退出码）。 |
 | [tools/validate_xmind.py](tools/validate_xmind.py) | 交付闸在本包内的可执行形态：解 `content.json`，实装内容标准最低集（禁标点、分级字数 2-7／2-12、一级预算 ≤9、扇出 ≤13、笔记结构四不变量、`right-number` 与一级分支数一致）。退出码 0=干净／1=点名违例／2=文件不可读；`--self-test` 用合成夹具自证每检会响，`--emit-fixture` 可吐出任一夹具成真文件。 |
 | [examples/](examples/) | 可跑的「数据/构建分离」样例：`example_data.py`（内容 + 词条台账 + 结构计划表）与 `example_build.py`（组装 `content.json`、打包 `.xmind`，再由上面那道闸验收）。它同时是反向证据：把数据里一个标题改坏，构建就被拦。 |
 

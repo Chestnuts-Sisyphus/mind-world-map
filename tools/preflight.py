@@ -31,6 +31,27 @@ if hasattr(sys.stdout, "reconfigure"):
 
 REPO = Path(__file__).resolve().parent.parent
 
+
+# ---------------------------------------------------------------- 逐行豁免标记
+# 工具脚本自身必然承载规则字面量（盘符路径样例、私有件名、命令形态正则），所以扫描集
+# 不能整目录排除 tools/——那是「因为会响所以不许响」。改法：谁要留字面量，谁就在
+# 那一行写 `# preflight:rule-literal: <理由>`，放行范围只覆盖这一行、只覆盖模式类检测。
+RULE_LITERAL_MARKER = "preflight:rule-literal"  # preflight:rule-literal: 标记常量的定义行本身就是字面量
+MARKER_WITH_REASON = re.compile(r"preflight:rule-literal\s*[:：]\s*\S")  # preflight:rule-literal: 标记语法的正则字面量本体
+
+
+def line_exempt(line: str) -> bool:
+    """带理由的豁免标记行放行；光秃秃的标记不放行（见 marker_hits）。"""
+    return bool(MARKER_WITH_REASON.search(line))
+
+
+def marker_hits(rel, text):
+    """豁免标记必须写明理由，否则「加个标记」就等于把整条规则关掉。"""
+    return [f"{rel}:{lineno} exempt-marker-without-reason"
+            for lineno, line in enumerate(text.splitlines(), 1)
+            if RULE_LITERAL_MARKER in line and not line_exempt(line)]
+
+
 def _decode_terms(text: str) -> str:
     """把清单/规则里以 \\uXXXX 转义存放的字面量解出来。
     公开包里因此不承载身份词原文——词表本身也是发布面的一部分。"""
@@ -103,7 +124,7 @@ LOCAL_TRACE_RULES = [
     ("short-83-name", re.compile(r"(?<=[/\\])[A-Za-z0-9_$.\-]{1,12}~\d(?=[/\\])")),
     # 盘符绝对路径；前置断言排除 https:// 这类 URL scheme 误伤
     ("drive-letter-path", re.compile(r"(?<![\w:])[A-Za-z]:[/\\][\w.~\- /\\]")),
-    # 用户目录段（无盘符前缀的形态，如 /Users/xxx、/home/xxx 的手工残留）
+    # 用户目录段（不带盘符前缀的形态：家目录绝对段的手工残留写法）
     ("users-dir", re.compile(r"(?<![A-Za-z0-9])[/\\]Users[/\\]\w")),
 ]
 
@@ -128,13 +149,13 @@ MD_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 # 端口按形态拦（代理语境内 4 位以上数字），不写死具体端口号——否则闸退化成单点黑名单。
 LOCAL_NETWORK_RULES = [
     ("loopback-endpoint", re.compile(
-        r"(?:127\.0\.0\.1|\blocalhost\b|0\.0\.0\.0|\[?::1\]?)(?:[:：]\s*\d{2,5})?")),
+        r"(?:127\.0\.0\.1|\blocalhost\b|0\.0\.0\.0|\[?::1\]?)(?:[:：]\s*\d{2,5})?")),  # preflight:rule-literal: 本机网络检的正则字面量本体
     ("local-proxy-port", re.compile(
         r"(?i)(?:proxy|proxies|clash|v2ray|surge|shadowsocks|socks|代理|端口)[^\n]{0,8}?\b\d{4,5}\b")),
 ]
 
 # 个人标识形态：邮箱（含 @ 的账号形态）。占位与noreply 域名不报，文档示例才能留。
-EMAIL_PLACEHOLDER = re.compile(r"(?i)@(?:example\.(?:com|org|net)|localhost|noreply\.|gitlab\.)")
+EMAIL_PLACEHOLDER = re.compile(r"(?i)@(?:example\.(?:com|org|net)|localhost|noreply\.|gitlab\.)")  # preflight:rule-literal: 邮箱豁免域名的正则字面量本体
 PERSONAL_IDENTITY_RULES = [
     # 域名最后一段必须是纯字母 TLD：npm 的 pkg@1.2.3 形态不是邮箱，实测会假阳性
     ("personal-email", re.compile(
@@ -202,6 +223,8 @@ def check_external_script_ref(rel, text):
     （读者同样会照着跑）。只报行号与规则名，绝不回显命中内容。"""
     hits = []
     for lineno, line in enumerate(text.splitlines(), 1):
+        if line_exempt(line):
+            continue
         marked = any(marker in line for marker in NON_PACKAGE_MARKERS)
         if marked:
             continue
@@ -232,26 +255,100 @@ def check_external_script_ref(rel, text):
     return hits
 
 
+# 扫描分级：md 走全量检；其余文本件只走泄露类检；两份「规则自身的数据件」再降级。
+SCAN_SUFFIXES = {".md", ".txt", ".yml", ".yaml", ".py", ".tsv", ".json", ".toml", ".cfg", ".ini"}
+SKIP_DIRS = {".git", "__pycache__", ".ruff_cache"}
+# 这两件本身就是「私有件清单」与「身份词清单」，跑私有件点名与身份检等于自己抓自己；
+# 泄露类检（盘符路径、凭据形态、本机网络形态）照跑——清单里也不该有那些。
+RULE_DATA_RELS = (".gitignore", "tools/identity-terms.tsv")
+MD_TIER = "md"
+LEAK_TIER = "leak"
+RULE_DATA_TIER = "rule-data"
+
+LEAK_CHECKS = ("local_trace", "local_network", "personal_identity", "credentials")
+IDENTITY_CHECKS = ("identity",)
+PRIVATE_NAME_CHECKS = ("private_mentions",)
+DOC_CHECKS = ("links", "external_command")
+
+
+def file_tier(rel: str) -> str:
+    """一个相对路径该跑哪一档检查；返回空串表示不扫（二进制、构建产物、缓存目录）。
+    无扩展名跟踪件（`.gitattributes`、`.github/CODEOWNERS`）同样是发布面，进泄露类档。"""
+    parts = rel.split("/")
+    if SKIP_DIRS.intersection(parts):
+        return ""
+    name = parts[-1]
+    if rel in RULE_DATA_RELS:
+        return RULE_DATA_TIER
+    suffix = Path(name).suffix.lower()
+    if suffix == ".md":
+        return MD_TIER
+    if suffix in SCAN_SUFFIXES or name == "LICENSE" or not suffix:
+        return LEAK_TIER
+    return ""
+
+
+def checks_for(tier: str):
+    """分级口径的唯一出处：跑哪几类检由档位决定，不由运行布局决定。"""
+    if tier == MD_TIER:
+        return LEAK_CHECKS + IDENTITY_CHECKS + PRIVATE_NAME_CHECKS + DOC_CHECKS
+    if tier == LEAK_TIER:
+        return LEAK_CHECKS + IDENTITY_CHECKS
+    if tier == RULE_DATA_TIER:
+        return LEAK_CHECKS
+    return ()
+
+
+def select_rels(rels, private=()):
+    """取数与判定分离的纯函数：给一串相对路径，返回真正要扫的 (相对路径, 档位)。
+    因此四布局（仓库 / 三处正本 / 干净 clone）下的分级结论可被自测逐字复现。"""
+    private = set(private)
+    return [(rel, file_tier(rel)) for rel in sorted(rels)
+            if file_tier(rel) and rel not in private]
+
+
+def tracked_rel_paths(repo: Path = REPO):
+    """扫描范围的取数：仓库布局按 git 跟踪清单（与 README 承诺面同源），
+    安装点布局没有 git，退化为扫包内目录。"""
+    if (repo / ".gitignore").is_file():
+        names = git_tracked_files_at(repo)
+        if names:
+            return names
+    return [p.relative_to(repo).as_posix() for p in sorted(repo.rglob("*")) if p.is_file()]
+
+
 def tracked_text_files():
-    """扫描范围 = 仓库内所有文本类跟踪文件（工具脚本自身承载规则字面量，排除之）；
+    """扫描范围 = 全部跟踪文本件，含 `tools/`（旧版整目录排除它，等于承认
+    「工具脚本里的本机痕迹扫不到」；现在改由逐行豁免标记放行）与无扩展名跟踪件。
     .gitignore 登记的私有文档不属于发布包，跳过其内容扫描（改由「私有件入包」检查拦截）。"""
     private = gitignored_doc_paths()
-    out = []
-    for p in sorted(REPO.rglob("*")):
-        if not p.is_file():
-            continue
-        rel = p.relative_to(REPO).as_posix()
-        parts = set(p.relative_to(REPO).parts)
-        if {".git", "__pycache__"}.intersection(parts) or "tools" in parts:
-            continue
-        if rel in private:
-            continue
-        # `.py` 也扫：examples/ 是对外发布的内容件（示例节点标题与释义都在里面）。
-        # tools/ 已在上面排除——那两个脚本本身承载规则字面量，扫它们等于自己抓自己。
-        if p.suffix.lower() not in {".md", ".txt", ".yml", ".yaml", ".py"} and p.name != "LICENSE":
-            continue
-        out.append((rel, p))
-    return out
+    return [(rel, REPO / rel) for rel, _tier in select_rels(tracked_rel_paths(), private)
+            if (REPO / rel).is_file()]
+
+
+CHECK_FUNCS = {
+    "local_trace": lambda rel, text: check_local_trace(rel, text),
+    "local_network": lambda rel, text: check_local_network(rel, text),
+    "personal_identity": lambda rel, text: check_personal_identity(rel, text),
+    "credentials": lambda rel, text: check_credentials(rel, text),
+    "identity": lambda rel, text: check_identity(rel, text),
+    "private_mentions": lambda rel, text: check_private_mentions(rel, text),
+    "links": lambda rel, text: check_links(rel, text),
+    "external_command": lambda rel, text: check_external_script_ref(rel, text),
+}
+
+
+def run_checks(rel, text, tier):
+    """按档位跑检：主流程与自测共用同一条线路，所以自测证的就是真在跑的那套。"""
+    hits = []
+    for name in checks_for(tier):
+        hits += CHECK_FUNCS[name](rel, text)
+    return hits
+
+
+def check_synthetic_private_mention(rel, text):
+    """自测入口：拿合成私有件名跑同一条判定线路（含逐行豁免），不依赖仓库清单。"""
+    return private_mention_hits(rel, text, {Path(SYNTH_PRIVATE_REL).stem})
 
 
 def private_present_hits(present):
@@ -269,6 +366,13 @@ def check_private_present(existing=None):
     return private_present_hits(present)
 
 
+def scan_items():
+    """(相对路径, Path, 档位) 三元组 = 主流程唯一的扫描入口。"""
+    private = gitignored_doc_paths()
+    return [(rel, REPO / rel, tier) for rel, tier in select_rels(tracked_rel_paths(), private)
+            if (REPO / rel).is_file()]
+
+
 def iter_public_md():
     for rel, p in tracked_text_files():
         if p.suffix.lower() != ".md":
@@ -281,6 +385,9 @@ def known_doc_stems():
 
 
 # 与仓库 .gitignore 同源的私有件清单：安装点目录没有 .gitignore，靠这份常量识别私有文档。
+# 自测用合成私有件名：证明「误拷进包」与「点名私有件」两条检会响，不借用真实清单。
+SYNTH_PRIVATE_REL = "references/synthetic-private-doc.md"
+
 LOCAL_PRIVATE_RELS = [
     "QODER-MIGRATION.md",
     "references/memory/cm-closure-mindmap-pipeline.md",
@@ -323,9 +430,12 @@ def read(path: Path) -> str:
 
 
 def scan_pattern(rel: str, text: str, rules):
-    """逐行匹配；只报位置。"""
+    """逐行匹配；只报位置。带理由的逐行豁免标记行放行（工具脚本自身必然
+    承载规则字面量，标记语法见文件顶部的 RULE_LITERAL_MARKER）。"""
     hits = []
     for lineno, line in enumerate(text.splitlines(), 1):
+        if line_exempt(line):
+            continue
         for name, pat in rules:
             if pat.search(line):
                 hits.append(f"{rel}:{lineno} {name}")
@@ -350,6 +460,8 @@ def check_personal_identity(rel, text):
     """邮箱形态的个人标识：占位/noreply 域名放行，其余一律点名。"""
     hits = []
     for lineno, line in enumerate(text.splitlines(), 1):
+        if line_exempt(line):
+            continue
         for m in PERSONAL_IDENTITY_RULES[0][1].finditer(line):
             if not EMAIL_PLACEHOLDER.search(m.group(0)):
                 hits.append(f"{rel}:{lineno} personal-email")
@@ -377,6 +489,8 @@ def check_links(rel, text):
     here = REPO / rel
     stems = known_doc_stems()
     for lineno, line in enumerate(text.splitlines(), 1):
+        if line_exempt(line):
+            continue
         for m in WIKILINK.finditer(line):
             if m.group(1).strip() not in stems:
                 hits.append(f"{rel}:{lineno} dead-wikilink")
@@ -456,11 +570,19 @@ def check_links_online(urls=None, status=http_status):
 
 def check_private_mentions(rel, text):
     """公开文档点名了被 .gitignore 排除、外部取不到的私有件。"""
-    names = gitignored_doc_names()
+    return private_mention_hits(rel, text, gitignored_doc_names())
+
+
+def private_mention_hits(rel, text, names):
+    """私有件点名的判定体：名单可注入，所以自测用合成件名即可证明这条检会响，
+    不必把真实私有清单抄进夹具（夹具一律合成值）。"""
+    names = set(names)
     if not names:
         return []
     hits = []
     for lineno, line in enumerate(text.splitlines(), 1):
+        if line_exempt(line):
+            continue
         for m in PRIVATE_FILE_HINT.finditer(line):
             if m.group(1) in names:
                 hits.append(f"{rel}:{lineno} private-doc-mentioned")
@@ -504,14 +626,18 @@ INSIDE_HEADING = re.compile(r"(?i)what's inside|仓库里有什么")
 BOX_CHARS = re.compile(r"[├└│─┌┐└┘]")
 
 
-def git_tracked_files():
+def git_tracked_files_at(repo: Path = REPO):
     """跟踪文件集 = README 承诺的对照面。取不到（非仓库/无 git）返回空，检查随之跳过。"""
     try:
-        out = subprocess.run(["git", "-C", str(REPO), "ls-files"], capture_output=True,
+        out = subprocess.run(["git", "-C", str(repo), "ls-files"], capture_output=True,
                              text=True, encoding="utf-8", errors="replace", timeout=30)
     except Exception:
         return []
     return [ln.strip() for ln in out.stdout.splitlines() if ln.strip()]
+
+
+def git_tracked_files():
+    return git_tracked_files_at(REPO)
 
 
 def _join_path(parts):
@@ -804,9 +930,9 @@ SELFTEST_CASES = [
     ("identity", check_identity, "本节由" + "栗" + "子定稿"),
     ("credentials", check_credentials, "export access_token = " + "a" * 24),
     ("dead-link", check_links, "参见 [[no-such-doc-here]] 与 [文本](tools/nope.py)"),
-    ("private-doc", check_private_mentions, "详见 " + "connectome" + "-cm-core-definition.md"),
+    ("private-doc", check_synthetic_private_mention, "详见 " + SYNTH_PRIVATE_REL),
     # 本轮注入实验证实的三类漏网：合成样本，不含任何真实本机端口/真实邮箱
-    ("local-network", check_local_network, "回环端点 127.0.0.1:9999 与 Clash 代理 9999 下载稳"),
+    ("local-network", check_local_network, "回环端点 127.0.0.1:9999 与 Clash 代理 9999 下载稳"),  # preflight:rule-literal: 合成端点夹具须与真实形态同规则命中
     ("personal-identity", check_personal_identity, "联系作者 " + "who" + "@" + "author.internal-host.test"),
     ("external-script", check_external_script_ref, "先跑 python not_shipped_tool.py 一遍"),
     ("external-ps1", check_external_script_ref, "看门狗：workspace/default/watchdog_reboot.ps1 每小时一跑"),
@@ -870,13 +996,12 @@ def self_test():
     ok = ok and en_lv != zh_lv
 
     # 私有件误拷入包：注入一个「仓库里存在」的路径，不碰磁盘。走纯函数故两种布局都能自证。
-    sample_private = next(iter(gitignored_doc_paths()), "x.md")
-    hits = private_present_hits([sample_private])
+    hits = private_present_hits([SYNTH_PRIVATE_REL])
     print(("PASS" if hits else "FAIL") + " private-in-package: 人造误拷被拦（位置已点名）")
     ok = ok and bool(hits)
 
     # 发布面变换表：必须生效且幂等（同一张表被 sync_check 与发布脚本共用）
-    src = IDENTITY_BLOCK_TERMS[0] + "定的标准见 [[cm-closure-mindmap-pipeline]]，落盘于 D:/AI/HERMES/a.md"
+    src = IDENTITY_BLOCK_TERMS[0] + "定的标准见 [[cm-closure-mindmap-pipeline]]，落盘于 Q:/SYNTH/a.md"  # preflight:rule-literal: 变换表须吃进盘符与包外指针形态，值为合成
     once = apply_publish_rules(src)
     twice = apply_publish_rules(once)
     clean = ("栗" not in once) and ("[[cm-" not in once) and (":/" not in once.replace("https://", ""))
@@ -988,6 +1113,60 @@ def self_test():
     print(("PASS" if rev else "FAIL") + " links: 抽掉链接采集后该检失效（反向接线证明）")
     ok = ok and pos and not link_ok and not link_blind and rev
 
+    # 逐行豁免标记（L1 新形态）：规则字面量必须落在带理由的标记行上才放行。
+    lit = "落盘于 Q:/SYNTH/b.md 这一段是规则字面量"  # preflight:rule-literal: 豁免用例需真实盘符形态，值为合成
+    marked = lit + "  " + RULE_LITERAL_MARKER + ": 自测夹具需真实盘符形态"
+    bare_marker = lit + "  " + RULE_LITERAL_MARKER
+    exempted = not check_local_trace(SYNTH, marked)
+    unmarked_fires = bool(check_local_trace(SYNTH, lit))
+    bare_fires = bool(check_local_trace(SYNTH, bare_marker))
+    reason_hits = marker_hits(SYNTH, bare_marker)
+    original_exempt = globals()["line_exempt"]
+    try:
+        globals()["line_exempt"] = lambda line: False
+        blinded = check_local_trace(SYNTH, marked)
+    finally:
+        globals()["line_exempt"] = original_exempt
+    print(("PASS" if exempted else "FAIL") + " negative/rule-literal: 带理由的豁免标记行不报")
+    print(("PASS" if reason_hits and "exempt-marker-without-reason" in reason_hits[0] else "FAIL")
+          + " rule-literal: 光有标记不写理由被点名")
+    print(("PASS" if unmarked_fires and bare_fires else "FAIL")
+          + " rule-literal: 无标记或标记不完整的行照报（阴性不越界）")
+    print(("PASS" if blinded else "FAIL")
+          + " rule-literal: 摘掉标记解析后豁免行重新变红（反向接线证明）")
+    ok = ok and exempted and bool(reason_hits) and unmarked_fires and bare_fires and bool(blinded)
+
+    # 扫描集与分级口径（L1/L2 新检）：取数与判定分离，四布局结论一致
+    fake_rels = ["README.md", "SKILL.md", "tools/preflight.py", "tools/identity-terms.tsv",
+                 ".gitignore", ".gitattributes", ".github/CODEOWNERS", "LICENSE",
+                 "references/x.png", "__pycache__/leak.py", "examples/example_data.py"]
+    selected = dict(select_rels(fake_rels, {SYNTH_PRIVATE_REL}))
+    in_set = all(selected.get(rel) == LEAK_TIER for rel in
+                 ("tools/preflight.py", ".gitattributes", ".github/CODEOWNERS", "LICENSE"))
+    leak = set(checks_for(LEAK_TIER))
+    md = set(checks_for(MD_TIER))
+    rule_data = set(checks_for(RULE_DATA_TIER))
+    tiered = (rule_data and rule_data < leak and leak < md
+              and "identity" not in rule_data and "private_mentions" not in rule_data
+              and "identity" in leak and "private_mentions" not in leak)
+    original_tier = globals()["file_tier"]
+    try:
+        globals()["file_tier"] = lambda rel: "" if not Path(rel).suffix else original_tier(rel)
+        suffix_only = dict(select_rels([".gitattributes", ".github/CODEOWNERS"], set()))
+    finally:
+        globals()["file_tier"] = original_tier
+    print(("PASS" if in_set else "FAIL") + " scan-set: tools/ 与无扩展名跟踪件进扫描集")
+    print(("PASS" if "references/x.png" not in selected and "__pycache__/leak.py" not in selected
+           else "FAIL") + " negative/scan-set: 二进制与缓存目录不进扫描集")
+    print(("PASS" if tiered else "FAIL")
+          + " scan-tier: 登记表与审词清单只跑泄露类检（不跑身份检与私有件点名）")
+    print(("PASS" if md - leak == set(PRIVATE_NAME_CHECKS) | set(DOC_CHECKS) else "FAIL")
+          + " scan-tier: md 档在泄露类之上再加死链与包外引用")
+    print(("PASS" if not suffix_only else "FAIL")
+          + " scan-set: 只认有扩展名件时两件跟踪件即被漏扫（反向接线证明）")
+    ok = ok and in_set and tiered and (md - leak == set(PRIVATE_NAME_CHECKS) | set(DOC_CHECKS))
+    ok = ok and not suffix_only and "references/x.png" not in selected
+
     # 反向接线（本轮新形态）：把裸脚本名与「模块.成员」两条正则致盲，
     # 同一条人造违规必须变静默——否则新形态只是写在文件里，没接到线路上。
     samples = {"裸脚本名": "改结构先动 `cm_restructure.py` 再重建",
@@ -1030,16 +1209,12 @@ def main() -> int:
         return self_test()
 
     findings = []
-    for rel, path in iter_public_md():
+    scanned = []
+    for rel, path, tier in scan_items():
         text = scan_text(path)
-        findings += check_local_trace(rel, text)
-        findings += check_local_network(rel, text)
-        findings += check_personal_identity(rel, text)
-        findings += check_identity(rel, text)
-        findings += check_credentials(rel, text)
-        findings += check_links(rel, text)
-        findings += check_private_mentions(rel, text)
-        findings += check_external_script_ref(rel, text)
+        scanned.append(rel)
+        findings += run_checks(rel, text, tier)
+        findings += marker_hits(rel, text)
     findings += check_bilingual_structure()
     findings += check_private_present()
     findings += check_skill_frontmatter()
@@ -1049,17 +1224,6 @@ def main() -> int:
     findings += check_crlf()
     findings += check_tracked_binary()
     findings += check_version_tag()
-
-    # 非 md 的发布文件（LICENSE / yml 配置）只跑泄露类检测
-    for rel, path in tracked_text_files():
-        if path.suffix.lower() == ".md":
-            continue
-        text = scan_text(path)
-        findings += check_local_trace(rel, text)
-        findings += check_local_network(rel, text)
-        findings += check_personal_identity(rel, text)
-        findings += check_credentials(rel, text)
-        findings += check_identity(rel, text)
 
     if args.only:
         findings = [f for f in findings if args.only in f]
@@ -1077,8 +1241,8 @@ def main() -> int:
         for f in findings:
             print(f"  - {f}")
         return 1
-    n = len(list(iter_public_md())) + 1
-    print(f"发布面预检通过：全部规则零命中，已扫 {n} 个文件")
+    print(f"发布面预检通过：全部规则零命中，已扫 {len(scanned)} 个文件"
+          "（含 tools/ 与无扩展名跟踪件，规则字面量走带理由的逐行豁免标记）")
     if want_links and link_hits:
         print(f"外链体检（不阻断）：{len(urls)} 条中 {len(link_hits)} 条不可达，"
               f"--strict-links 可计入退出码")

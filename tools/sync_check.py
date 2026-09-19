@@ -185,7 +185,7 @@ def compare(repo_root: Path, masters):
 
 # 自测样本：含盘符路径与包外记忆指针两种「必须被变换」的形态。刻意不含身份词——
 # 测试夹具一旦落盘就成了命中原文的载体，而身份词的变换由 preflight 的内存自测覆盖。
-RAW_TEXT = "落盘位置 D:/AI/HERMES/x.md，另见 [[cm-closure-mindmap-pipeline]]。\n"
+RAW_TEXT = "落盘位置 Q:/SYNTH/x.md，另见 [[cm-closure-mindmap-pipeline]]。\n"  # preflight:rule-literal: "发布面变换夹具需盘符与包外指针两种真实形态，值为合成"
 GITIGNORE_STUB = "__pycache__/\nreferences/memory/private-notes.md\n"
 
 
@@ -243,8 +243,9 @@ def self_test() -> int:
 
         # 反向接线证明：把发布面变换从比对里摘掉，一个本来正确的镜像会被判成漂移，
         # 说明这张表真的接在线路上（而不是「写了没接」）。
-        fresh = apply_publish_rules("新的一句落盘位置 D:/AI/HERMES/y.md。\n")
-        _put(master / "SKILL.md", "新的一句落盘位置 D:/AI/HERMES/y.md。\n")
+        synth = "新的一句落盘位置 Q:/SYNTH/y.md。\n"  # preflight:rule-literal: "接线夹具需盘符形态，值为合成"
+        fresh = apply_publish_rules(synth)
+        _put(master / "SKILL.md", synth)
         _put(repo / "SKILL.md", fresh)
         problems, _r, _p, _s = compare(repo, [master])
         check("clean pair passes again", not any("SKILL.md" in p for p in problems))

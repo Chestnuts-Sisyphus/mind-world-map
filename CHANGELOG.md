@@ -1,6 +1,25 @@
 ## [Unreleased]
 
-Nothing queued.
+- **Changed (`tools/preflight.py`)**: `tools/` is no longer excluded from the scan set. The gate
+  used to skip the whole directory because the tools themselves carry rule literals (drive-letter
+  fixture paths, credential shapes, command shapes), which meant judgement 6 - "zero plaintext
+  identity terms / zero local traces" - only ever held for the scanned subset, and the biggest
+  literal carrier in the repository was the one place it could not look. Now every tracked text
+  file is scanned and a line is exempted only by carrying `# preflight:rule-literal: <reason>`,
+  i.e. a marker that states why the literal has to be there. A marker without a reason is itself
+  reported (`exempt-marker-without-reason`). Self-test 50 -> 59 cases.
+- **Changed (`tools/preflight.py`)**: the scan set is tiered rather than "md or nothing".
+  `.gitattributes` and `.github/CODEOWNERS` (no extension, therefore previously invisible) join the
+  leak-class checks; `.gitignore` and `tools/identity-terms.tsv` run the leak-class checks only -
+  they *are* the private-file list and the identity-word list, so running the private-name and
+  identity checks over them would be the gate chasing its own data. The tier table
+  (`file_tier` / `checks_for`) is a pure function, so the verdict is identical in the repository,
+  the three install masters and a clean clone.
+- **Changed (`tools/preflight.py`, `tools/publish.py`, `tools/sync_check.py`)**: self-test fixtures
+  are neutralised to synthetic values - a made-up drive-prefixed path and a synthetic private-document name -
+  and the private-mention check takes an injectable name list, so no fixture copies a real local
+  directory or a real private file name. Fixture text is still required to have the shape the rules
+  detect (drive prefix, wikilink), which is what the exemption markers on those lines state.
 
 ## v1.2.1 — 2026-09-19 — Frozen check counts are the ones that go stale
 

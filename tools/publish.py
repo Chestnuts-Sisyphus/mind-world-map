@@ -131,7 +131,7 @@ def plan(primary: Path, masters: list, dry_run: bool, repo: Path = REPO) -> list
 # 夹具文本用「盘符路径 + 包外记忆指针」两种必须变换的形态，刻意不写身份词：
 # 身份词本体一旦落到临时文件上，测试夹具自己就成了命中原文的载体；身份词的变换
 # 由 tools/preflight.py --self-test 的内存用例覆盖（不落盘）。
-RAW_SAMPLE = "落盘位置 D:/AI/HERMES/x.md，另见 [[cm-closure-mindmap-pipeline]]。\n"
+RAW_SAMPLE = "落盘位置 Q:/SYNTH/x.md，另见 [[cm-closure-mindmap-pipeline]]。\n"  # preflight:rule-literal: "发布面变换夹具需盘符与包外指针两种真实形态，值为合成"
 GITIGNORE_STUB = "__pycache__/\nreferences/memory/private-notes.md\n"
 TOOL_SAMPLE = "#!/usr/bin/env python3\nprint('tool payload')\n"
 

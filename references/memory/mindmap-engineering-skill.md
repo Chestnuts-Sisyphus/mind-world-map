@@ -16,7 +16,7 @@ metadata:
 - **触发场景**：任何「导图/思维导图/xmind/全景图/结构图」任务——新做、**更新**、验收都算
 - **开工三件事**：①读记忆库 xmind-style-baseline + xmind-cli-local-generation ②改标准须作者点头 ③确认一口气到终形态
 - **出图闸门（09-06 升级）**：一代闸（禁标点/**首现即释**【术语首用2跳内须白话定义+命名讨论后置，check_term_locality】/**词条合同**【复述式定义阻断】/**一级预算≤9**/字数/黑话/扇出）+ 二代 QA 七检+2（链条改名、家族canon毒化【阻断】；字母码、变体兄弟、机械组、导览、**类目导览缺失、跨支重复**【报告级须分诊】）
-- **QA 模块通用**：任何 [title, kids] 树可 import run_all；已出图 xmind 用 qa_xmind(path) 事后体检 + diff_xmind(old, new) 新旧比对；`python mindmap_qa.py` 跑自测（每个坏例子=一次真实返工标本）
+- **QA 模块通用**：任何 [title, kids] 树可 import run_all；已出图 xmind 用 qa_xmind(path) 事后体检 + diff_xmind(old, new) 新旧比对；`python mindmap_qa.py` 跑自测（该脚本非本包发布物，参考实现随作者工作区；每个坏例子=一次真实返工标本）
 - **冷读者叙事铁律（09-06 作者定稿，最高验收线）**：见 [[mindmap-narrative-calibration]]——首现即释/词条合同/类目合同/一级预算四闸 + 归类优先更新纪律（禁新开词典支与平行类目）
 - **更新协议（CM 图=推进标准时代）**：图是构建产物禁手改 xmind，唯一路径=改数据→重建；构建自动产出时间戳备份（<local-workdir>/HERMES/Connectome-backups/，可整版回滚）+diff_report.txt（增/删/改名三分类）+build_history.jsonl 台账；闸门与 QA 每次扫全图，标准只紧不松；幂等已验证（同数据重建自动报无更新）
 - **交付四件套**：validate 0 错、闸门+QA 全绿、覆盖清单（含 diff 摘要/分诊台账/留白及原因）、冷读者四问抽查

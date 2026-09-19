@@ -19,7 +19,7 @@ metadata:
 
 ## 09-06 下午：干净重启实验否定拉锁病 → 驱动 616.64 已装，待重启终测
 
-⑪作者 13:42 自行重启（原始配置）→**仍闪** → 拉锁病/强杀触发模型被否定（纯新开机也闪），病=616.56 驱动与 Electron 合成的常驻兼容问题。⑫时间线勘误：此前两次「重启测 MPO/HAGS」全部无效的原因=**两次重启都发生在修复应用之前**（首次是还原后才重启；二次 13:42 早于 14:29 重新应用）——MPO/HAGS 从未真正生效过。⑬已静默安装 **616.64**（939MB 包在 <local-workdir>/HERMES/nvidia-616.64.exe，`-s -noeject -noreboot`，DriverVersion 32.0.16.1656→32.0.16.1664 实证成功；注意：第一次 Start-Process 静默安装会秒退，重试一次即可）。⑭当前待办=一次重启同时生效：新驱动+MPO关+HAGS关 → 作者双击原图终测。仍闪的最后手段=**降级 616.56 之前的旧版驱动**（驱动库无旧包，需查 NVIDIA 历史版本下载）。⑮NVIDIA 直链规律：`us.download.nvidia.com/Windows/<ver>/<ver>-desktop-win10-win11-64bit-international-dch-whql.exe`（CN 镜像不通，直连美区会 RST，走 Clash 代理 7890 下载稳）；AjaxDriverService API 已 404 退场，版本查询用 processFind.aspx。
+⑪作者 13:42 自行重启（原始配置）→**仍闪** → 拉锁病/强杀触发模型被否定（纯新开机也闪），病=616.56 驱动与 Electron 合成的常驻兼容问题。⑫时间线勘误：此前两次「重启测 MPO/HAGS」全部无效的原因=**两次重启都发生在修复应用之前**（首次是还原后才重启；二次 13:42 早于 14:29 重新应用）——MPO/HAGS 从未真正生效过。⑬已静默安装 **616.64**（939MB 包在 <local-workdir>/HERMES/nvidia-616.64.exe，`-s -noeject -noreboot`，DriverVersion 32.0.16.1656→32.0.16.1664 实证成功；注意：第一次 Start-Process 静默安装会秒退，重试一次即可）。⑭当前待办=一次重启同时生效：新驱动+MPO关+HAGS关 → 作者双击原图终测。仍闪的最后手段=**降级 616.56 之前的旧版驱动**（驱动库无旧包，需查 NVIDIA 历史版本下载）。⑮NVIDIA 直链规律：`us.download.nvidia.com/Windows/<ver>/<ver>-desktop-win10-win11-64bit-international-dch-whql.exe`（CN 镜像不通，直连美区会 RST，走本机代理下载稳）；AjaxDriverService API 已 404 退场，版本查询用 processFind.aspx。
 
 ## 09-05 深夜案件重开：作者否决 cmd 启动器，必须根治
 

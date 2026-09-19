@@ -134,7 +134,7 @@ metadata:
 正文如 CM「改前问准线」）。③**auto_rehome_defs 归位轮**接进五个构建器（CM/终审包/二号机/成果图/闪黑）：
 挂点脱离/未先序确定性搬到首用现场（章头先序位/首用头下避导览位），幂等。④check_def_unique 兄弟豁免
 条款废除（=前置词汇表合法化通道）。⑤check_grounding 黑话闸与挂点闸口径统一（定义节点不算使用+
-先讲后用豁免+is_def 认【定义】标记形态）。⑥**validate_map.py** 统一验证入口（python validate_map.py
+先讲后用豁免+is_def 认【定义】标记形态）。⑥**validate_map.py** 统一验证入口（该脚本非本包发布物，参考实现随作者工作区；python validate_map.py
 [--blocking-only] <xmind...>，退出码 0 才许交付）——任何图谁产的都必过。⑦SKILL.md 焊死交付闸铁律五条。
 **验收实绩**：selftest 8 检查正反例全过；五图重建全 PASS（CM 7619/终审包 443/二号机/成果图/闪黑）；
 六图体检五张全绿、无限进步图（外会话产物无数据文件）被正确拦死（挂点违规不许交付，修复=导图循环按

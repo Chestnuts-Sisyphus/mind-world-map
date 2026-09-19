@@ -16,6 +16,7 @@
 import argparse
 import getpass
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -344,6 +345,112 @@ def non_ascii_hits(rel, text):
             if any(ord(c) > 127 for c in line)]
 
 
+ROOT_TOKEN = "mind-world-map/"
+README_FILES = ("README.md", "README.zh-CN.md")
+INSIDE_HEADING = re.compile(r"(?i)what's inside|仓库里有什么")
+BOX_CHARS = re.compile(r"[├└│─┌┐└┘]")
+
+
+def git_tracked_files():
+    """跟踪文件集 = README 承诺的对照面。取不到（非仓库/无 git）返回空，检查随之跳过。"""
+    try:
+        out = subprocess.run(["git", "-C", str(REPO), "ls-files"], capture_output=True,
+                             text=True, encoding="utf-8", errors="replace", timeout=30)
+    except Exception:
+        return []
+    return [ln.strip() for ln in out.stdout.splitlines() if ln.strip()]
+
+
+def _join_path(parts):
+    out = ""
+    for part in parts:
+        if not out or out.endswith("/"):
+            out += part
+        else:
+            out += "/" + part
+    return out
+
+
+def tree_claims(text):
+    """目录树围栏块里的路径承诺：去注释与框线，按缩进还原层级拼成完整路径。
+    不还原层级会把 `pitfalls.md` 当根路径，整棵树都会误报；同一行的多个兄弟路径
+    （`README.md / README.zh-CN.md`）只能各自成一条，括号里的是注解不是路径。"""
+    claims, stack, in_fence = [], [], False
+    for lineno, line in enumerate(text.splitlines(), 1):
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if not in_fence:
+            continue
+        marker = min((line.find(ch) for ch in ("├", "└") if ch in line), default=-1)
+        if marker < 0:
+            continue
+        del stack[marker // 4:]
+        body = BOX_CHARS.sub(" ", line[marker:]).split("#")[0].replace(" / ", " ")
+        tokens = [t.strip("()（）") for t in body.split() if not t.startswith(("(", "（"))]
+        tokens = [t for t in tokens if t and t != ROOT_TOKEN.rstrip("/")]
+        for token in tokens:
+            claims.append((lineno, _join_path(stack + [token])))
+        if tokens:
+            stack.append(tokens[-1])
+    return claims
+
+
+def inside_claims(text):
+    """'What's inside' 一节的相对链接同样是公开承诺（其余章节的跨文档链接由死链检查管）。"""
+    claims, inside = [], False
+    for lineno, line in enumerate(text.splitlines(), 1):
+        if re.match(r"^##\s", line):
+            inside = bool(INSIDE_HEADING.search(line))
+            continue
+        if inside:
+            for m in MD_LINK.finditer(line):
+                target = m.group(1).strip()
+                if not target.startswith(("http://", "https://", "#", "mailto:")):
+                    claims.append((lineno, target.lstrip("/")))
+    return claims
+
+
+def layout_hits(rel, claims, tracked):
+    """正向：README 点名的每条路径都必须真存在；反向：每个跟踪文件都必须被点名，
+    或被「折叠目录」（该目录下列了任何子项即不算折叠）覆盖。"""
+    files = {t for _, t in claims if not t.endswith("/")}
+    dirs = {t if t.endswith("/") else t + "/" for _, t in claims if t.endswith("/")}
+    collapsed = {d for d in dirs if not any(o.startswith(d) for o in files | dirs if o != d)}
+    hits = []
+    tracked_set = set(tracked)
+    for lineno, token in claims:
+        if token.endswith("/"):
+            if not any(f.startswith(token) for f in tracked_set):
+                hits.append(f"{rel}:{lineno} stale-tree-entry ({token})")
+        elif token not in tracked_set:
+            hits.append(f"{rel}:{lineno} stale-tree-entry ({token})")
+    for f in sorted(tracked_set):
+        if f in files or any(f.startswith(d) for d in collapsed):
+            continue
+        hits.append(f"{rel}:1 unlisted-tracked-file ({f})")
+    return hits
+
+
+def check_readme_layout():
+    """README 的目录树与 What's inside 是对外承诺的文件清单；靠人工同步必然漂移（本轮
+    加 publish.py / AGENTS.md / release.yml 就是下一次漂移现场），故钉成机器闸。"""
+    if not is_repo_layout():
+        return []
+    tracked = git_tracked_files()
+    if not tracked:
+        return []
+    hits = []
+    for rel in README_FILES:
+        path = REPO / rel
+        if not path.is_file():
+            continue
+        text = read(path)
+        hits += layout_hits(rel, tree_claims(text) + inside_claims(text), tracked)
+    return hits
+
+
 def check_skill_frontmatter():
     skill = REPO / "SKILL.md"
     if not skill.is_file():
@@ -460,6 +567,17 @@ def self_test():
     print(("PASS" if clean else "FAIL") + " publish-rules: 人造原文经变换后三类痕迹均消失")
     ok = ok and once == twice and clean
 
+    # README 目录树闸：正反两个方向都要响（用内存文档 + 人造跟踪清单，不碰磁盘）
+    fake_tracked = ["SKILL.md", "tools/preflight.py", "CHANGELOG.md"]
+    fake_doc = ("```\nproj/\n├── SKILL.md   # 入口\n├── tools/\n"
+                "│   └── preflight.py\n└── GHOST.md   # 早已删掉的旧文件\n```\n")
+    fake_hits = layout_hits("README.md", tree_claims(fake_doc), fake_tracked)
+    forward = any("stale-tree-entry" in h and "GHOST.md" in h for h in fake_hits)
+    backward = any("unlisted-tracked-file" in h and "CHANGELOG.md" in h for h in fake_hits)
+    print(("PASS" if forward else "FAIL") + " readme-layout: 树里列了不存在的文件被点名")
+    print(("PASS" if backward else "FAIL") + " readme-layout: 未写进树的跟踪文件被点名")
+    ok = ok and forward and backward
+
     # frontmatter 五键：注入一个只有 name/description 的块
     hits = frontmatter_issues("name: x\ndescription: y\n")
     print(("PASS" if hits else "FAIL") + f" frontmatter: 人造缺键块被拦（{len(hits)} 项）")
@@ -496,6 +614,7 @@ def main() -> int:
     findings += check_private_present()
     findings += check_skill_frontmatter()
     findings += check_workflows_ascii()
+    findings += check_readme_layout()
 
     # 非 md 的发布文件（LICENSE / yml 配置）只跑泄露类检测
     for rel, path in tracked_text_files():

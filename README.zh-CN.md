@@ -67,11 +67,15 @@ mind-world-map/
 │   └── memory/                   # 6 份深度知识文档
 ├── tools/
 │   ├── sync_check.py             # 正本与镜像一致性闸（只读）
-│   └── preflight.py              # 发布闸：痕迹/凭据/死链/隐私（只读）
+│   ├── preflight.py              # 发布闸：痕迹/凭据/死链/隐私（只读）
+│   ├── identity-terms.tsv        # 闸读取的人工审词清单（block/exempt + 理由）
+│   └── publish.py                # 发布入口：正本 → 镜像变换（唯一写盘件，幂等）
 ├── .github/
 │   ├── workflows/ci.yml          # 跑两道闸 + 链接与结构检查
 │   ├── ISSUE_TEMPLATE/           # 缺陷 / 需求模板
+│   ├── CODEOWNERS                # 能力层的评审归属
 │   └── pull_request_template.md  # 贡献者自查清单（含两道闸）
+├── AGENTS.md                     # 面向改动本包的 agent 的机器指令
 ├── README.md / README.zh-CN.md
 ├── CONTRIBUTING.md / SECURITY.md / CODE_OF_CONDUCT.md
 ├── CHANGELOG.md
@@ -90,10 +94,11 @@ mind-world-map/
 步骤：
 
 1. 在本地 skill 目录（如 `~/.claude/skills/mindmap-engineering/`）改 `SKILL.md` / `references/**`。
-2. 把改动文件按同相对路径拷进仓库，并套用 `tools/preflight.py` 里的发布面规则。
-3. 跑两道闸，两者退出码都为 0 才允许提交：
+2. 在仓库根目录跑 `python tools/publish.py`：它套用 `tools/preflight.py` 里的发布面规则重写镜像，并把 `tools/**` 分发回各处安装点；幂等，第二遍零写入。
+3. 跑下面几道闸，退出码都为 0 才允许提交：
 
 ```bash
+python tools/publish.py --check # 正本 / 镜像 / 已分发工具之间的漂移（不写盘）
 python tools/sync_check.py      # 点名每个不一致文件；正本目录可用位置参数或 MINDMAP_SKILL_MASTERS 指定
 python tools/preflight.py       # 每条发布面违规点名到文件与行号
 python tools/preflight.py --self-test   # 自证每类检查仍会触发
@@ -104,6 +109,8 @@ python tools/preflight.py --self-test   # 自证每类检查仍会触发
 ## 🤝 参与贡献
 
 见 [CONTRIBUTING.md](CONTRIBUTING.md)——简版口径：标准只改 [SKILL.md](SKILL.md)（唯一正本），不许在具体产出里自行放宽任何规则，开 PR 前跑完两道闸。疑似安全问题按 [SECURITY.md](SECURITY.md) 上报；参与者须遵守 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。
+
+用 AI agent 改本包？[AGENTS.md](AGENTS.md) 是给机器读的简报（改正本、经 `tools/publish.py` 发布、提交前过闸），[.github/CODEOWNERS](.github/CODEOWNERS) 写明评审归属。
 
 ## 📄 许可
 

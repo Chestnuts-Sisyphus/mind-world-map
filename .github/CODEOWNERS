@@ -1,0 +1,5 @@
+# Review ownership for this skill package.
+# Everything here is the capability layer (standards, gates, tooling); maps produced with
+# it belong to the subject projects, so there is no per-directory owner split to make.
+
+* @Chestnuts-Sisyphus

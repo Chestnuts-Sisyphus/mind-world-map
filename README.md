@@ -76,11 +76,15 @@ mind-world-map/
 │   └── memory/                   # 6 deep-dive knowledge docs (style baseline, CLI flow, ...)
 ├── tools/
 │   ├── sync_check.py             # master <-> mirror consistency gate (read-only)
-│   └── preflight.py              # publication gate: traces / secrets / dead links / privacy (read-only)
+│   ├── preflight.py              # publication gate: traces / secrets / dead links / privacy (read-only)
+│   ├── identity-terms.tsv        # human-reviewed identity word list the gate reads (block/exempt + reason)
+│   └── publish.py                # publish entry: master -> mirror transform (the only writer, idempotent)
 ├── .github/
 │   ├── workflows/ci.yml          # runs both gates + link & structure checks
 │   ├── ISSUE_TEMPLATE/           # bug / feature templates
+│   ├── CODEOWNERS                # review ownership for the capability layer
 │   └── pull_request_template.md  # contributor checklist (gates included)
+├── AGENTS.md                     # instructions for agents editing this package
 ├── README.md / README.zh-CN.md
 ├── CONTRIBUTING.md / SECURITY.md / CODE_OF_CONDUCT.md
 ├── CHANGELOG.md
@@ -99,10 +103,13 @@ The **local skill directory is the editing master** (正本); this repository is
 Steps:
 
 1. Edit `SKILL.md` / `references/**` in your local skill directory (e.g. `~/.claude/skills/mindmap-engineering/`).
-2. Copy the changed files to the repo at the same relative paths and apply the publication rules from `tools/preflight.py`.
-3. Run the two gates — both must exit 0 before you commit:
+2. Run `python tools/publish.py` from the repo root. It applies the publication rules from
+   `tools/preflight.py`, rewrites the mirror at the same relative paths, and distributes
+   `tools/**` back to every install point. It is idempotent — a second run writes nothing.
+3. Run the gates — every one must exit 0 before you commit:
 
 ```bash
+python tools/publish.py --check # drift between master, mirror and installed tools (no writes)
 python tools/sync_check.py      # names every divergent file; pass master dirs as args, or set MINDMAP_SKILL_MASTERS
 python tools/preflight.py       # names file:line for every publication-rule violation
 python tools/preflight.py --self-test   # proves each check still fires
@@ -113,6 +120,10 @@ python tools/preflight.py --self-test   # proves each check still fires
 ## 🤝 Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) — the short version: edit the standards in `SKILL.md` only (it is the single source of truth), never soften a rule inside a deliverable, and run both gates before opening a PR. Report suspected security issues per [SECURITY.md](SECURITY.md); participants agree to [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
+Working here with an AI agent? [AGENTS.md](AGENTS.md) is the machine-facing brief (edit the
+master, publish through `tools/publish.py`, gates before commit), and
+[.github/CODEOWNERS](.github/CODEOWNERS) says who reviews what.
 
 ## 📄 License
 
